@@ -23,6 +23,7 @@ fn default_true() -> bool {
 #[derive(serde::Serialize, serde::Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Configurations {
+    #[cfg(not(target_family = "wasm"))]
     pub binary_path: Option<PathBuf>,
     #[serde(default = "default_true")]
     pub background_indexing: bool,
@@ -40,6 +41,7 @@ pub struct Configurations {
 impl Default for Configurations {
     fn default() -> Self {
         Self {
+            #[cfg(not(target_family = "wasm"))]
             binary_path: None,
             background_indexing: true,
             error_reporting: true,

@@ -20,6 +20,7 @@ pub mod diagnostics;
 pub mod document;
 pub mod document_link;
 pub mod document_symbol;
+#[cfg(not(target_family = "wasm"))]
 pub mod formatting;
 pub mod goto_definition;
 pub mod hover;

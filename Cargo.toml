@@ -24,11 +24,16 @@ pest_derive = "2.7.15"
 self_cell = "1.2.1"
 serde = "1.0.217"
 serde_json = "1.0.134"
+rayon = "1.10.0"
 thiserror = "2.0.12"
-tokio = { version = "1.47.0", features = ["io-std", "io-util", "macros", "process", "rt-multi-thread", "sync"] }
+tokio = { version = "1.47.0", features = ["io-std", "io-util", "macros", "process", "rt-multi-thread", "sync", "time", "fs"] }
 tower-lsp = "0.20.0"
+tracing = "0.1.41"
 walkdir = "2.5.0"
 which = "7.0.2"
 
 [dev-dependencies]
 tempfile = "3.19.1"
+
+[target.'cfg(not(target_family = "wasm"))'.dependencies]
+tokio = { version = "1.43.1", features = ["full"] }

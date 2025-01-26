@@ -117,12 +117,13 @@
   "scripts": {
     "build": "rm -rf build && npm run build-extension && npm run build-server",
     "build-extension": "webpack",
-    "build-server": "cargo build --release && bash -c 'cp ../target/${CARGO_BUILD_TARGET:-.}/release/gn-language-server${APPDATA:+.exe} dist/'",
+    "build-server": "cargo build --release --target wasm32-wasip1-threads && bash -c 'cp ../target/wasm32-wasip1-threads/release/gn-language-server.wasm dist/'",
     "package": "vsce package",
     "lint": "gts lint",
     "fix": "gts fix"
   },
   "dependencies": {
+    "@vscode/wasm-wasi-lsp": "^0.1.0-pre.8",
     "vscode-languageclient": "^9.0.1"
   },
   "devDependencies": {

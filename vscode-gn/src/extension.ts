@@ -17,6 +17,12 @@
 import * as path from 'path';
 import * as vscode from 'vscode';
 import * as p2c from 'vscode-languageclient/lib/common/protocolConverter';
+import {Wasm, ProcessOptions} from '@vscode/wasm-wasi/v1';
+import {
+  createStdioOptions,
+  createUriConverters,
+  startServer,
+} from '@vscode/wasm-wasi-lsp';
 import {
   LanguageClient,
   LanguageClientOptions,
@@ -183,15 +189,18 @@ async function chooseImportCandidates(
 }
 
 class GnLanguageClient extends LanguageClient {
-  constructor(context: vscode.ExtensionContext, output: vscode.OutputChannel) {
+  private constructor(id: string, name: string, serverOptions: ServerOptions, clientOptions: LanguageClientOptions) {
+    super(id, name, serverOptions, clientOptions);
+  }
+
+  static async create(context: vscode.ExtensionContext, output: vscode.OutputChannel): Promise<GnLanguageClient> {
+    const wasm = await Wasm.load();
+
     const clientOptions: LanguageClientOptions = {
       initializationOptions: {
         vscode_extension: true,
       } as InitializationOptions,
-      documentSelector: [
-        {scheme: 'file', pattern: '**/*.gn'},
-        {scheme: 'file', pattern: '**/*.gni'},
-      ],
+      documentSelector: [{pattern: '**/*.gn'}, {pattern: '**/*.gni'}],
       synchronize: {
         configurationSection: 'gn',
         fileEvents: [
@@ -200,24 +209,37 @@ class GnLanguageClient extends LanguageClient {
         ],
       },
       outputChannel: output,
+      uriConverters: createUriConverters(),
     };
 
-    const extensionDir = context.extensionPath;
-    const serverOptions: ServerOptions = {
-      transport: TransportKind.stdio,
-      command: path.join(
-        extensionDir,
-        'dist/gn-language-server' + EXECUTABLE_SUFFIX
-      ),
-      options: {
-        cwd: extensionDir,
-        env: {
-          RUST_BACKTRACE: '1',
-        },
-      },
+    const serverOptions: ServerOptions = async () => {
+      const options: ProcessOptions = {
+        stdio: createStdioOptions(),
+        mountPoints: [{kind: 'workspaceFolder'}],
+      };
+      const filename = vscode.Uri.joinPath(
+        context.extensionUri,
+        'dist',
+        'gn-language-server.wasm'
+      );
+      const bits = await vscode.workspace.fs.readFile(filename);
+      const module = await WebAssembly.compile(bits);
+      const process = await wasm.createProcess(
+        'gn-language-server',
+        module,
+        {initial: 16 * 16, maximum: 16 * 1024, shared: true},
+        options
+      );
+
+      const decoder = new TextDecoder('utf-8');
+      process.stderr!.onData(data => {
+        output.append(decoder.decode(data));
+      });
+
+      return startServer(process);
     };
 
-    super('gn', 'GN', serverOptions, clientOptions);
+    return new GnLanguageClient('gn', 'GN', serverOptions, clientOptions);
   }
 
   handleFailedRequest<T>(
@@ -245,7 +267,7 @@ async function startLanguageServer(
   context: vscode.ExtensionContext,
   output: vscode.OutputChannel
 ): Promise<void> {
-  const client = new GnLanguageClient(context, output);
+  const client = await GnLanguageClient.create(context, output);
   context.subscriptions.push(client);
   await client.start();
 

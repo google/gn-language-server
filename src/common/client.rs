@@ -36,11 +36,11 @@ impl TestableClient {
         Self { client: None }
     }
 
-    pub async fn log_message<M: Display>(&self, typ: MessageType, message: M) {
-        if let Some(client) = &self.client {
-            client.log_message(typ, message).await;
-        }
-    }
+    // pub async fn log_message<M: Display>(&self, typ: MessageType, message: M) {
+    //     if let Some(client) = &self.client {
+    //         client.log_message(typ, message).await;
+    //     }
+    // }
 
     pub async fn configurations(&self) -> Configurations {
         let Some(client) = &self.client else {

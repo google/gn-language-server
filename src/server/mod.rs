@@ -15,8 +15,7 @@
 #[cfg(test)]
 use std::path::Path;
 use std::{
-    sync::{Arc, Mutex, OnceLock},
-    time::Instant,
+    os::fd::FromRawFd, sync::{Arc, Mutex, OnceLock}, time::Instant
 };
 
 use tower_lsp::{
@@ -168,6 +167,7 @@ impl LanguageServer for Backend {
                 }),
                 document_symbol_provider: Some(OneOf::Left(true)),
                 completion_provider: Some(CompletionOptions::default()),
+                #[cfg(not(target_family = "wasm"))]
                 document_formatting_provider: Some(OneOf::Left(true)),
                 references_provider: Some(OneOf::Left(true)),
                 workspace_symbol_provider: Some(OneOf::Left(true)),
@@ -187,11 +187,11 @@ impl LanguageServer for Backend {
     }
 
     async fn initialized(&self, _params: InitializedParams) {
-        let context = self.context.request();
-        context
-            .client
-            .log_message(MessageType::INFO, "GN language server initialized")
-            .await;
+        // let context = self.context.request();
+        // context
+        //     .client
+        //     .log_message(MessageType::INFO, "GN language server initialized")
+        //     .await;
 
         let configurations = self.context.client.configurations().await;
         if !configurations.background_indexing {
@@ -262,6 +262,7 @@ impl LanguageServer for Backend {
         Ok(providers::references::references(&self.context.request(), params).await?)
     }
 
+    #[cfg(not(target_family = "wasm"))]
     async fn formatting(
         &self,
         params: DocumentFormattingParams,
@@ -294,7 +295,7 @@ pub async fn run() {
     let (service, socket) =
         LspService::new(move |client| Backend::new(storage, TestableClient::new(client)));
 
-    let stdin = tokio::io::stdin();
-    let stdout = tokio::io::stdout();
+    let stdin = tokio::fs::File::from_std(unsafe { std::fs::File::from_raw_fd(0) });
+    let stdout = tokio::fs::File::from_std(unsafe { std::fs::File::from_raw_fd(1) });
     Server::new(stdin, stdout, socket).serve(service).await;
 }
