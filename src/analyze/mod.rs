@@ -256,7 +256,7 @@ impl Analyzer {
         let build_config = {
             let storage = self.storage.lock().unwrap();
             let document = storage.read(&dot_gn_path)?;
-            evaluate_dot_gn(&workspace_root, &document.data)?
+            evaluate_dot_gn(workspace_root, &document.data)?
         };
 
         let context = WorkspaceContext {

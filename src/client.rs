@@ -15,7 +15,7 @@
 use std::fmt::Display;
 
 use itertools::Itertools;
-use tower_lsp::lsp_types::{ConfigurationItem, MessageType};
+use tower_lsp::lsp_types::{ConfigurationItem, Diagnostic, MessageType, Url};
 
 use crate::config::Configurations;
 
@@ -62,5 +62,16 @@ impl TestableClient {
         };
 
         serde_json::from_value(value).unwrap_or_default()
+    }
+
+    pub async fn publish_diagnostics(
+        &self,
+        uri: Url,
+        diags: Vec<Diagnostic>,
+        version: Option<i32>,
+    ) {
+        if let Some(client) = &self.client {
+            client.publish_diagnostics(uri, diags, version).await;
+        };
     }
 }

@@ -142,4 +142,8 @@ impl DocumentStorage {
     pub fn unload_from_memory(&mut self, path: &Path) {
         self.memory_docs.remove(path);
     }
+
+    pub fn memory_docs(&self) -> Vec<Pin<Arc<Document>>> {
+        self.memory_docs.values().cloned().collect()
+    }
 }

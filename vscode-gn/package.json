@@ -64,15 +64,20 @@
     "configuration": {
       "title": "GN",
       "properties": {
+        "gn.binaryPath": {
+          "type": "string",
+          "default": null,
+          "description": "Path to the GN binary. If unset, it is auto-detected."
+        },
         "gn.experimental.backgroundIndexing": {
           "type": "boolean",
           "default": false,
           "description": "Enables background indexing (experimental)."
         },
-        "gn.binaryPath": {
-          "type": "string",
-          "default": null,
-          "description": "Path to the GN binary. If unset, it is auto-detected."
+        "gn.experimental.errorReporting": {
+          "type": "boolean",
+          "default": false,
+          "description": "Reports syntax errors (experimental)."
         },
         "gn.trace.server": {
           "type": "string",

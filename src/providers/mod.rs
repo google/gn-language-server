@@ -27,6 +27,8 @@ use crate::{
 };
 
 pub mod completion;
+pub mod configuration;
+pub mod diagnostics;
 pub mod document;
 pub mod document_link;
 pub mod document_symbol;

@@ -119,6 +119,7 @@ async function startLanguageServer(
       {scheme: 'file', pattern: '**/*.gni'},
     ],
     synchronize: {
+      configurationSection: 'gn',
       fileEvents: [
         vscode.workspace.createFileSystemWatcher('**/*.gn'),
         vscode.workspace.createFileSystemWatcher('**/*.gni'),

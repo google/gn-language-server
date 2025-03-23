@@ -21,13 +21,13 @@ use std::{
 use tokio::spawn;
 use tower_lsp::{
     lsp_types::{
-        CompletionOptions, CompletionParams, CompletionResponse, DidChangeTextDocumentParams,
-        DidCloseTextDocumentParams, DidOpenTextDocumentParams, DocumentFormattingParams,
-        DocumentLink, DocumentLinkOptions, DocumentLinkParams, DocumentSymbolParams,
-        DocumentSymbolResponse, GotoDefinitionParams, GotoDefinitionResponse, Hover, HoverParams,
-        HoverProviderCapability, InitializeParams, InitializeResult, InitializedParams,
-        MessageType, OneOf, ServerCapabilities, TextDocumentSyncCapability, TextDocumentSyncKind,
-        TextEdit,
+        CompletionOptions, CompletionParams, CompletionResponse, DidChangeConfigurationParams,
+        DidChangeTextDocumentParams, DidCloseTextDocumentParams, DidOpenTextDocumentParams,
+        DocumentFormattingParams, DocumentLink, DocumentLinkOptions, DocumentLinkParams,
+        DocumentSymbolParams, DocumentSymbolResponse, GotoDefinitionParams, GotoDefinitionResponse,
+        Hover, HoverParams, HoverProviderCapability, InitializeParams, InitializeResult,
+        InitializedParams, MessageType, OneOf, ServerCapabilities, TextDocumentSyncCapability,
+        TextDocumentSyncKind, TextEdit,
     },
     LanguageServer, LspService, Server,
 };
@@ -123,6 +123,10 @@ impl LanguageServer for Backend {
 
     async fn did_close(&self, params: DidCloseTextDocumentParams) {
         crate::providers::document::did_close(&self.context, params).await;
+    }
+
+    async fn did_change_configuration(&self, params: DidChangeConfigurationParams) {
+        crate::providers::configuration::did_change_configuration(&self.context, params).await;
     }
 
     async fn goto_definition(

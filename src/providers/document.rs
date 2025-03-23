@@ -16,7 +16,10 @@ use tower_lsp::lsp_types::{
     DidChangeTextDocumentParams, DidCloseTextDocumentParams, DidOpenTextDocumentParams,
 };
 
-use super::ProviderContext;
+use super::{
+    diagnostics::{publish_diagnostics, unpublish_diagnostics},
+    ProviderContext,
+};
 
 pub async fn did_open(context: &ProviderContext, params: DidOpenTextDocumentParams) {
     let Ok(path) = params.text_document.uri.to_file_path() else {
@@ -28,6 +31,8 @@ pub async fn did_open(context: &ProviderContext, params: DidOpenTextDocumentPara
         &params.text_document.text,
         params.text_document.version,
     );
+
+    publish_diagnostics(context, &params.text_document.uri).await;
 }
 
 pub async fn did_change(context: &ProviderContext, params: DidChangeTextDocumentParams) {
@@ -43,12 +48,16 @@ pub async fn did_change(context: &ProviderContext, params: DidChangeTextDocument
         &change.text,
         params.text_document.version,
     );
+
+    publish_diagnostics(context, &params.text_document.uri).await;
 }
 
 pub async fn did_close(context: &ProviderContext, params: DidCloseTextDocumentParams) {
     let Ok(path) = params.text_document.uri.to_file_path() else {
         return;
     };
+
+    unpublish_diagnostics(context, &params.text_document.uri).await;
 
     context.storage.lock().unwrap().unload_from_memory(&path);
 }

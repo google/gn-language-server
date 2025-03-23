@@ -26,4 +26,6 @@ pub struct Configurations {
 pub struct ExperimentalConfigurations {
     #[serde(default)]
     pub background_indexing: bool,
+    #[serde(default)]
+    pub error_reporting: bool,
 }
