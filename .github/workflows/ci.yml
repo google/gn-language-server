@@ -42,6 +42,8 @@ jobs:
       - run: addlicense -check .
       - run: cargo fmt --check
       - run: cargo clippy
+      - run: cargo install --force --locked cargo-deny@0.18.2
+      - run: cargo deny check licenses
       - run: npm ci
         working-directory: vscode-gn
       - run: npm run lint
