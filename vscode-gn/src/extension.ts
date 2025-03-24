@@ -19,6 +19,8 @@ import * as vscode from 'vscode';
 import {
   LanguageClient,
   LanguageClientOptions,
+  MessageSignature,
+  ResponseError,
   ServerOptions,
   TransportKind,
 } from 'vscode-languageclient/node';
@@ -109,43 +111,68 @@ async function openBuildFile(): Promise<void> {
   );
 }
 
+class GnLanguageClient extends LanguageClient {
+  constructor(context: vscode.ExtensionContext, output: vscode.OutputChannel) {
+    const clientOptions: LanguageClientOptions = {
+      documentSelector: [
+        {scheme: 'file', pattern: '**/*.gn'},
+        {scheme: 'file', pattern: '**/*.gni'},
+      ],
+      synchronize: {
+        configurationSection: 'gn',
+        fileEvents: [
+          vscode.workspace.createFileSystemWatcher('**/*.gn'),
+          vscode.workspace.createFileSystemWatcher('**/*.gni'),
+        ],
+      },
+      outputChannel: output,
+    };
+
+    const extensionDir = context.extensionPath;
+    const serverOptions: ServerOptions = {
+      transport: TransportKind.stdio,
+      command: path.join(
+        extensionDir,
+        'dist/gn-language-server' + EXECUTABLE_SUFFIX
+      ),
+      options: {
+        cwd: extensionDir,
+        env: {
+          RUST_BACKTRACE: '1',
+        },
+      },
+    };
+
+    super('gn', 'GN', serverOptions, clientOptions);
+  }
+
+  handleFailedRequest<T>(
+    type: MessageSignature,
+    token: vscode.CancellationToken | undefined,
+    error: unknown,
+    defaultValue: T,
+    showNotification?: boolean
+  ): T {
+    if (error instanceof ResponseError && error.code === 1) {
+      this.error(`${type.method}: ${error.message}`, true);
+      throw error;
+    }
+    return super.handleFailedRequest(
+      type,
+      token,
+      error,
+      defaultValue,
+      showNotification
+    );
+  }
+}
+
 async function startLanguageServer(
   context: vscode.ExtensionContext,
   output: vscode.OutputChannel
 ): Promise<void> {
-  const clientOptions: LanguageClientOptions = {
-    documentSelector: [
-      {scheme: 'file', pattern: '**/*.gn'},
-      {scheme: 'file', pattern: '**/*.gni'},
-    ],
-    synchronize: {
-      configurationSection: 'gn',
-      fileEvents: [
-        vscode.workspace.createFileSystemWatcher('**/*.gn'),
-        vscode.workspace.createFileSystemWatcher('**/*.gni'),
-      ],
-    },
-    outputChannel: output,
-  };
-
-  const extensionDir = context.extensionPath;
-  const serverOptions: ServerOptions = {
-    transport: TransportKind.stdio,
-    command: path.join(
-      extensionDir,
-      'dist/gn-language-server' + EXECUTABLE_SUFFIX
-    ),
-    options: {
-      cwd: extensionDir,
-      env: {
-        RUST_BACKTRACE: '1',
-      },
-    },
-  };
-
-  const client = new LanguageClient('gn', 'GN', serverOptions, clientOptions);
+  const client = new GnLanguageClient(context, output);
   context.subscriptions.push(client);
-
   await client.start();
 }
 
