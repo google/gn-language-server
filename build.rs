@@ -15,8 +15,9 @@
 use std::process::Command;
 
 fn main() {
-    Command::new("python3")
+    assert!(Command::new("python3")
         .arg("scripts/generate_builtins.py")
         .status()
-        .unwrap();
+        .unwrap()
+        .success());
 }
