@@ -26,9 +26,8 @@ def main():
         version = json.load(f)['version']
     components = [int(s) for s in version.split('.')]
     assert len(components) == 3, version
-    if components[1] % 2 == 0:
-        sys.exit(1)
-    sys.exit(0)
+    if components[1] % 2 == 1:
+        print('--pre-release')
 
 
 if __name__ == '__main__':

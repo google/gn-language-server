@@ -117,8 +117,9 @@ jobs:
       working-directory: vscode-gn
     - run: npm run build
       working-directory: vscode-gn
-    - run: npx vsce package --target=${{ matrix.vscode_target }}
+    - run: npx vsce package $(python3 ../scripts/release_flags.py) --target=${{ matrix.vscode_target }}
       working-directory: vscode-gn
+      shell: bash
     - uses: actions/upload-artifact@v4
       with:
         name: vscode-gn-vsix-${{ matrix.vscode_target }}
@@ -145,7 +146,7 @@ jobs:
       - run: npm ci
         working-directory: vscode-gn
         if: startsWith(github.ref, 'refs/tags/v')
-      - run: npx -y vsce publish $(if ../scripts/is_prerelease.py; then echo --pre-release; fi) --packagePath *.vsix
+      - run: npx -y vsce publish $(python3 ../scripts/release_flags.py) --packagePath *.vsix
         working-directory: vscode-gn
         env:
           VSCE_PAT: ${{ secrets.VSCE_PAT }}
