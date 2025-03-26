@@ -16,7 +16,10 @@ use std::process::Command;
 
 fn main() {
     assert!(Command::new("python3")
-        .arg("scripts/generate_builtins.py")
+        .arg(format!(
+            "{}/scripts/generate_builtins.py",
+            std::env::var("CARGO_MANIFEST_DIR").unwrap()
+        ))
         .status()
         .unwrap()
         .success());
