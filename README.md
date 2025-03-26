@@ -55,6 +55,7 @@ cargo build --release
 ```sh
 cd vscode-gn
 npm install
+npm run build
 npm run package
 ```
 

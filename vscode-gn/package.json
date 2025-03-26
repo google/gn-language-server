@@ -98,8 +98,7 @@
     "build-server": "cargo build --release && bash -c 'cp ../target/${CARGO_BUILD_TARGET:-.}/release/gn-language-server${APPDATA:+.exe} dist/'",
     "package": "vsce package",
     "lint": "gts lint",
-    "fix": "gts fix",
-    "vscode:prepublish": "npm ci && npm run build"
+    "fix": "gts fix"
   },
   "dependencies": {
     "vscode-languageclient": "^9.0.1"
