@@ -6,7 +6,7 @@
     "type": "git",
     "url": "https://github.com/google/gn-language-server"
   },
-  "version": "0.1.0",
+  "version": "1.0.0",
   "publisher": "Google",
   "engines": {
     "vscode": "^1.96.0"
