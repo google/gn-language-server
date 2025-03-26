@@ -1,7 +1,18 @@
 [package]
 name = "gn-language-server"
+description = "A language server for GN, the build configuration language used in Chromium and other projects"
 version = "1.0.0"
 edition = "2021"
+license = "Apache-2.0"
+repository = "https://github.com/google/gn-language-server"
+exclude = [
+    ".github",
+    "build",
+    "docs",
+    "scripts",
+    "testdata",
+    "vscode-gn",
+]
 
 [dependencies]
 anyhow = "1.0.95"
