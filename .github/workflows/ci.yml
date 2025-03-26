@@ -46,6 +46,9 @@ jobs:
       - run: cargo clippy
       - run: cargo install --force --locked cargo-deny@0.18.2
       - run: cargo deny check licenses
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20.x
       - run: npm ci
         working-directory: vscode-gn
       - run: npm run lint
@@ -136,10 +139,13 @@ jobs:
           merge-multiple: true
       - run: ls -l *.vsix
         working-directory: vscode-gn
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20.x
       - run: npm ci
         working-directory: vscode-gn
         if: startsWith(github.ref, 'refs/tags/v')
-      - run: npx -y vsce publish --packagePath *.vsix
+      - run: npx -y vsce publish $(if ../scripts/is_prerelease.py; then echo --pre-release; fi) --packagePath *.vsix
         working-directory: vscode-gn
         env:
           VSCE_PAT: ${{ secrets.VSCE_PAT }}

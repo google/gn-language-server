@@ -1,0 +1,57 @@
+# Copyright 2025 Google LLC
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+name: Nightly
+
+on:
+  schedule:
+    - cron: '0 0 * * *'
+  workflow_dispatch:
+
+jobs:
+  nightly:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20.x
+      - name: Set up Git
+        run: |
+          git config --global user.name 'nightly-bump[bot]'
+          git config --global user.email '41898282+github-actions[bot]@users.noreply.github.com'
+      - name: Check new commits since the last version bump
+        id: check-commits
+        run: |
+          if [[ "$(git log -1 --pretty=format:%an)" == "$(git config user.name)" ]]; then
+            echo "has_commits=no" >> $GITHUB_OUTPUT
+          else
+            echo "has_commits=yes" >> $GITHUB_OUTPUT
+          fi
+      - uses: dtolnay/rust-toolchain@fbaa7e9cfc198f7c12d653f12beae9646e216b29  # 1.85.1
+        if: steps.check-commits.outputs.has_commits == 'yes'
+      - uses: Swatinem/rust-cache@9d47c6ad4b02e050fd481d890b2ea34778fd09d6  # v2.7.8
+        if: steps.check-commits.outputs.has_commits == 'yes'
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20.x
+      - run: cargo install --force --locked cargo-edit@0.13.2
+        if: steps.check-commits.outputs.has_commits == 'yes'
+      - name: Bump version
+        if: steps.check-commits.outputs.has_commits == 'yes'
+        run: |
+          version=$(./scripts/bump_version.py --update)
+          git commit -a -m "Bump version to $version"
+          git tag "v$version"
+          git push --follow-tags
