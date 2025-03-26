@@ -126,13 +126,21 @@ jobs:
     needs:
       - lint
       - vscode-extension
-    if: success() && startsWith(github.ref, 'refs/tags/v')
+    if: success()
     steps:
       - uses: actions/checkout@v4
       - uses: actions/download-artifact@v4
+        with:
+          pattern: vscode-gn-vsix-*
+          path: ${{ github.workspace }}/vscode-gn
+          merge-multiple: true
+      - run: ls -l *.vsix
+        working-directory: vscode-gn
       - run: npm ci
         working-directory: vscode-gn
+        if: startsWith(github.ref, 'refs/tags/v')
       - run: npx -y vsce publish --packagePath *.vsix
         working-directory: vscode-gn
         env:
           VSCE_PAT: ${{ secrets.VSCE_PAT }}
+        if: startsWith(github.ref, 'refs/tags/v')
