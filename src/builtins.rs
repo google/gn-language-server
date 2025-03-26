@@ -41,4 +41,4 @@ impl BuiltinSymbols {
     }
 }
 
-pub const BUILTINS: BuiltinSymbols = include!("builtins.gen.rsi");
+pub const BUILTINS: BuiltinSymbols = include!(concat!(env!("OUT_DIR"), "/builtins.gen.rsi"));
