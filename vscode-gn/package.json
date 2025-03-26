@@ -1,7 +1,7 @@
 {
   "name": "gn",
-  "displayName": "GN",
-  "description": "Language Support for GN",
+  "displayName": "GN Language",
+  "description": "Language server for GN, the build configuration language used in Chromium and other projects",
   "repository": {
     "type": "git",
     "url": "https://github.com/google/gn-language-server"
