@@ -1,48 +1,81 @@
 # GN Language Server
 
+[![CI](https://github.com/google/gn-language-server/actions/workflows/ci.yml/badge.svg)](https://github.com/google/gn-language-server/actions/workflows/ci.yml)
+
 A [language server](https://microsoft.github.io/language-server-protocol/) for
 [GN](https://gn.googlesource.com/gn/),
 the build configuration language used for Chromium.
 
 ## Features
 
+- Syntax highlighting
+- Context-aware completion
+- Hover documentation
+- Go to definition
+- Following imports
+- Following dependencies
+- Sticky scroll with useful lines
+- Outline
+- Code folding
+- Formatting
+- Go to the nearest `BUILD.gn` (VSCode only)
+
+## Installing
+
+### VSCode
+
+You can install from the official marketplace. Search for "GN Language" in the
+VSCode's extension window.
+
+![VSCode Marketplace](/docs/screenshots/marketplace.png)
+
+### Other Editors/IDEs
+
+You can install the language server with [Cargo](https://doc.rust-lang.org/cargo/).
+
+```sh
+cargo install gn-language-server
+```
+
+## Gallery
+
 ### Syntax highlighting
 
-![Syntax highlighting](./docs/screenshots/syntax_highlighting.png)
+![Syntax highlighting](/docs/screenshots/syntax_highlighting.png)
 
 ### Completion
 
-![Completion](./docs/screenshots/completion.png)
+![Completion](/docs/screenshots/completion.png)
 
 ### Hover documentation
 
-![Hover documentation](./docs/screenshots/hover_documentation.png)
+![Hover documentation](/docs/screenshots/hover_documentation.png)
 
 ### Go to definition
 
-![Go to definition](./docs/screenshots/go_to_definition.png)
+![Go to definition](/docs/screenshots/go_to_definition.png)
 
 ### Following imports
 
-![Following imports](./docs/screenshots/following_imports.png)
+![Following imports](/docs/screenshots/following_imports.png)
 
 ### Following dependencies
 
-![Following dependencies](./docs/screenshots/following_dependencies.png)
+![Following dependencies](/docs/screenshots/following_dependencies.png)
 
 ### Sticky scroll with useful lines
 
-![Sticky scroll with useful lines](./docs/screenshots/sticky_scroll.png)
+![Sticky scroll with useful lines](/docs/screenshots/sticky_scroll.png)
 
 ### Outline
 
-![Outline](./docs/screenshots/outline.png)
+![Outline](/docs/screenshots/outline.png)
 
 ### Code folding
 
-![Code folding](./docs/screenshots/code_folding.png)
+![Code folding](/docs/screenshots/code_folding.png)
 
-## Building
+## Building from source
 
 ### Language server binary
 
