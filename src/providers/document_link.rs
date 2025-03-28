@@ -14,12 +14,11 @@
 
 use std::{borrow::Cow, path::PathBuf};
 
-use itertools::Itertools;
 use tower_lsp::lsp_types::{DocumentLink, DocumentLinkParams, Url};
 
 use crate::analyze::Link;
 
-use super::{into_rpc_error, new_rpc_error, ProviderContext, RpcResult};
+use super::{find_target_position, into_rpc_error, new_rpc_error, ProviderContext, RpcResult};
 
 #[derive(serde::Serialize, serde::Deserialize)]
 struct TargetLinkData {
@@ -92,28 +91,13 @@ pub async fn document_link_resolve(
         .analyze(&data.path)
         .map_err(into_rpc_error)?;
 
-    let targets: Vec<_> = target_file
-        .targets_at(usize::MAX)
-        .into_iter()
-        .sorted_by_key(|target| (&target.document.path, target.span.start()))
-        .collect();
-
-    // Try target name prefixes.
-    for name in (1..=data.name.len()).rev().map(|len| &data.name[..len]) {
-        if let Some(target) = targets.iter().find(|t| t.name == name) {
-            let range = target.document.line_index.range(target.span);
-            let mut uri = Url::from_file_path(&data.path).unwrap();
-            uri.set_fragment(Some(&format!(
-                "L{},{}",
-                range.start.line + 1,
-                range.start.character + 1,
-            )));
-            link.target = Some(uri);
-            return Ok(link);
-        }
-    }
-
-    // Target not found. Just open the file.
-    link.target = Some(Url::from_file_path(&data.path).unwrap());
+    let position = find_target_position(&target_file, &data.name).unwrap_or_default();
+    let mut uri = Url::from_file_path(&data.path).unwrap();
+    uri.set_fragment(Some(&format!(
+        "L{},{}",
+        position.line + 1,
+        position.character + 1,
+    )));
+    link.target = Some(uri);
     Ok(link)
 }

@@ -17,6 +17,7 @@ use std::{
     sync::{Arc, Mutex},
 };
 
+use itertools::Itertools;
 use tower_lsp::lsp_types::Position;
 
 use crate::{
@@ -76,4 +77,22 @@ pub fn lookup_identifier_at(file: &AnalyzedFile, position: Position) -> Option<&
     file.ast_root
         .identifiers()
         .find(|ident| ident.span.start() <= offset && offset <= ident.span.end())
+}
+
+/// Finds the position of a target.
+pub fn find_target_position(file: &AnalyzedFile, name: &str) -> Option<Position> {
+    let targets: Vec<_> = file
+        .targets_at(usize::MAX)
+        .into_iter()
+        .sorted_by_key(|target| (&target.document.path, target.span.start()))
+        .collect();
+
+    // Try target name prefixes.
+    for name in (1..=name.len()).rev().map(|len| &name[..len]) {
+        if let Some(target) = targets.iter().find(|t| t.name == name) {
+            return Some(target.document.line_index.position(target.span.start()));
+        }
+    }
+
+    None
 }

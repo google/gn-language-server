@@ -447,3 +447,12 @@ pub enum Link<'i> {
         span: Span<'i>,
     },
 }
+
+impl<'i> Link<'i> {
+    pub fn span(&self) -> Span<'i> {
+        match self {
+            Link::File { span, .. } => *span,
+            Link::Target { span, .. } => *span,
+        }
+    }
+}

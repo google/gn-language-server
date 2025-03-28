@@ -14,11 +14,16 @@
 
 use std::borrow::Cow;
 
-use tower_lsp::lsp_types::{GotoDefinitionParams, GotoDefinitionResponse, LocationLink, Url};
+use tower_lsp::lsp_types::{
+    GotoDefinitionParams, GotoDefinitionResponse, Location, LocationLink, Position, Range, Url,
+};
 
-use crate::ast::Node;
+use crate::{analyze::Link, ast::Node};
 
-use super::{into_rpc_error, lookup_identifier_at, new_rpc_error, ProviderContext, RpcResult};
+use super::{
+    find_target_position, into_rpc_error, lookup_identifier_at, new_rpc_error, ProviderContext,
+    RpcResult,
+};
 
 pub async fn goto_definition(
     context: &ProviderContext,
@@ -42,6 +47,42 @@ pub async fn goto_definition(
         .unwrap()
         .analyze(&path)
         .map_err(into_rpc_error)?;
+
+    // Check links first.
+    if let Some(offset) = current_file
+        .document
+        .line_index
+        .offset(params.text_document_position_params.position)
+    {
+        if let Some(link) = current_file
+            .links
+            .iter()
+            .find(|link| link.span().start() <= offset && offset <= link.span().end())
+        {
+            let (path, position) = match link {
+                Link::File { path, .. } => (path, Position::default()),
+                Link::Target { path, name, .. } => {
+                    let target_file = context
+                        .analyzer
+                        .lock()
+                        .unwrap()
+                        .analyze(path)
+                        .map_err(into_rpc_error)?;
+                    (
+                        path,
+                        find_target_position(&target_file, name).unwrap_or_default(),
+                    )
+                }
+            };
+            return Ok(Some(GotoDefinitionResponse::Scalar(Location {
+                uri: Url::from_file_path(path).unwrap(),
+                range: Range {
+                    start: position,
+                    end: position,
+                },
+            })));
+        }
+    }
 
     let Some(ident) =
         lookup_identifier_at(&current_file, params.text_document_position_params.position)
