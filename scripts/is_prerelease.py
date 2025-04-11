@@ -27,7 +27,8 @@ def main():
     components = [int(s) for s in version.split('.')]
     assert len(components) == 3, version
     if components[1] % 2 == 1:
-        print('--pre-release')
+        sys.exit(0)
+    sys.exit(1)
 
 
 if __name__ == '__main__':

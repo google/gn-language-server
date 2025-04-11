@@ -119,7 +119,7 @@ jobs:
       working-directory: vscode-gn
     - run: npm run build
       working-directory: vscode-gn
-    - run: npx vsce package $(python3 ../scripts/release_flags.py) --target=${{ matrix.vscode_target }}
+    - run: npx vsce package $(if python3 ../scripts/is_prerelease.py; then echo --pre-release; fi) --target=${{ matrix.vscode_target }}
       working-directory: vscode-gn
       shell: bash
     - uses: actions/upload-artifact@v4
@@ -152,7 +152,7 @@ jobs:
         env:
           VSCE_PAT: ${{ secrets.VSCE_PAT }}
         if: startsWith(github.ref, 'refs/tags/v')
-      - run: npx -y ovsx publish --pat ${{ secrets.OVSX_PAT }} $(python3 ../scripts/release_flags.py) --packagePath *.vsix
+      - run: npx -y ovsx publish --pat ${{ secrets.OVSX_PAT }} $(if python3 ../scripts/is_prerelease.py; then echo --pre-release; fi) --packagePath *.vsix
         working-directory: vscode-gn
         if: startsWith(github.ref, 'refs/tags/v')
 
@@ -164,7 +164,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@fbaa7e9cfc198f7c12d653f12beae9646e216b29  # 1.85.1
-      - run: cargo publish
+      - run: if ! python3 ../scripts/is_prerelease.py; then cargo publish; fi
         env:
           CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
         if: startsWith(github.ref, 'refs/tags/v')
