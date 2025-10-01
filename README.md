@@ -26,8 +26,9 @@ the build configuration language used in Chromium, Fuchsia, and other projects.
 
 ### VSCode
 
-You can install from the official marketplace. Search for "GN Language" in the
-VSCode's extension window.
+You can install from the official [VSCode marketplace](https://marketplace.visualstudio.com/items?itemName=Google.gn)
+or the [OpenVSX marketplace](https://open-vsx.org/extension/Google/gn).
+Search for "GN Language" in the VSCode's extension window.
 
 ![VSCode Marketplace](/docs/screenshots/marketplace.png)
 
