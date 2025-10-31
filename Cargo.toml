@@ -1,7 +1,7 @@
 [package]
 name = "gn-language-server"
 description = "A language server for GN, the build configuration language used in Chromium, Fuchsia, and other projects"
-version = "1.9.0"
+version = "1.9.1"
 edition = "2021"
 license = "Apache-2.0"
 repository = "https://github.com/google/gn-language-server"
