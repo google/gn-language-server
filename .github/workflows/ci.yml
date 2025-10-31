@@ -20,7 +20,7 @@ on:
       - "main"
       - "v*.*.x"
     tags:
-      - "v*.*.x"
+      - "v*.*.*"
   pull_request:
     branches:
       - "main"
