@@ -55,37 +55,7 @@ jobs:
       - run: npm run lint
         working-directory: vscode-gn
 
-  language-server:
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - os: ubuntu-latest
-            rust_target: x86_64-unknown-linux-musl
-          - os: macos-latest
-            rust_target: aarch64-apple-darwin
-          - os: windows-latest
-            rust_target: x86_64-pc-windows-msvc
-    name: language-server (${{ matrix.rust_target }})
-    runs-on: ${{ matrix.os }}
-    env:
-      CARGO_BUILD_TARGET: ${{ matrix.rust_target }}
-    steps:
-    - uses: actions/checkout@v4
-    - run: sudo apt-get install musl-tools
-      if: matrix.os == 'ubuntu-latest'
-    - uses: dtolnay/rust-toolchain@fbaa7e9cfc198f7c12d653f12beae9646e216b29  # 1.85.1
-      with:
-        targets: ${{ matrix.rust_target }}
-    - uses: Swatinem/rust-cache@9d47c6ad4b02e050fd481d890b2ea34778fd09d6  # v2.7.8
-    - run: cargo build --release --target=${{ matrix.rust_target }} --verbose
-    - run: cargo test --target=${{ matrix.rust_target }} --verbose
-    - uses: actions/upload-artifact@v4
-      with:
-        name: gn-language-server-${{ matrix.rust_target }}
-        path: target/${{ matrix.rust_target }}/release/gn-language-server*
-
-  vscode-extension:
+  build:
     strategy:
       fail-fast: false
       matrix:
@@ -102,7 +72,7 @@ jobs:
     runs-on: ${{ matrix.os }}
     env:
       CARGO_BUILD_TARGET: ${{ matrix.rust_target }}
-    name: vscode-extension (${{ matrix.vscode_target }})
+    name: build (${{ matrix.vscode_target }})
     steps:
     - uses: actions/checkout@v4
     - run: sudo apt-get install musl-tools
@@ -125,17 +95,21 @@ jobs:
       with:
         name: vscode-gn-vsix-${{ matrix.vscode_target }}
         path: vscode-gn/*.vsix
+    - uses: actions/upload-artifact@v4
+      with:
+        name: gn-language-server-${{ matrix.rust_target }}
+        path: vscode-gn/dist/gn-language-server*
 
   upload-artifacts:
     runs-on: ubuntu-latest
     permissions:
       contents: write
     needs:
-      - language-server
-      - vscode-extension
+      - build
     steps:
       - uses: actions/download-artifact@v4
         with:
+          pattern: vscode-gn-vsix-*
           path: ${{ github.workspace }}/artifacts
           merge-multiple: true
       - run: ls -l .
