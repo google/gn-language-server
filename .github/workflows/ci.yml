@@ -19,6 +19,8 @@ on:
     branches:
       - "main"
       - "v*.*.x"
+    tags:
+      - "v*.*.x"
   pull_request:
     branches:
       - "main"
