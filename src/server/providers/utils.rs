@@ -31,14 +31,17 @@ pub fn get_text_document_path(text_document: &TextDocumentIdentifier) -> Result<
         .map_err(|_| Error::General(format!("invalid file URI: {}", text_document.uri)))
 }
 
-pub fn lookup_identifier_at(file: &AnalyzedFile, position: Position) -> Option<&Identifier> {
+pub fn lookup_identifier_at(file: &AnalyzedFile, position: Position) -> Option<&Identifier<'_>> {
     let offset = file.document.line_index.offset(position)?;
     file.ast
         .identifiers()
         .find(|ident| ident.span.start() <= offset && offset <= ident.span.end())
 }
 
-pub fn lookup_target_name_string_at(file: &AnalyzedFile, position: Position) -> Option<Target> {
+pub fn lookup_target_name_string_at(
+    file: &AnalyzedFile,
+    position: Position,
+) -> Option<Target<'_, '_>> {
     let offset = file.document.line_index.offset(position)?;
     file.analyzed_root.targets().find(|target| {
         target.call.args[0].span().start() <= offset && offset <= target.call.args[0].span().end()

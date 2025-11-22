@@ -257,11 +257,11 @@ impl AnalyzedFile {
         })
     }
 
-    pub fn variables_at(&self, pos: usize) -> VariableScope {
+    pub fn variables_at(&self, pos: usize) -> VariableScope<'_, '_> {
         self.analyzed_root.variables_at(pos)
     }
 
-    pub fn templates_at(&self, pos: usize) -> TemplateScope {
+    pub fn templates_at(&self, pos: usize) -> TemplateScope<'_, '_> {
         self.analyzed_root.templates_at(pos)
     }
 }

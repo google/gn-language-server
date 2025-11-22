@@ -361,7 +361,7 @@ fn convert_file(pair: Pair<Rule>) -> Block {
     Block { statements, span }
 }
 
-pub fn parse(input: &str) -> Block {
+pub fn parse(input: &str) -> Block<'_> {
     let file_pair = GnParser::parse(Rule::file, input)
         .unwrap()
         .exactly_one()

@@ -848,6 +848,6 @@ impl std::fmt::Display for Comments<'_> {
     }
 }
 
-pub fn parse(input: &str) -> Block {
+pub fn parse(input: &str) -> Block<'_> {
     parse::parse(input)
 }
