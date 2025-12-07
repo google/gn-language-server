@@ -28,15 +28,10 @@ use crate::{
 #[test]
 fn test_analyze_smoke() {
     let storage = Arc::new(Mutex::new(DocumentStorage::new()));
-    let analyzer = Analyzer::new(&storage);
-    let finder = WorkspaceFinder::new(None);
+    let analyzer = Analyzer::new(&storage, WorkspaceFinder::new(None));
 
     let file = analyzer
-        .analyze(
-            &testdata("workspaces/smoke/BUILD.gn"),
-            &finder,
-            Instant::now(),
-        )
+        .analyze_file(&testdata("workspaces/smoke/BUILD.gn"), Instant::now())
         .unwrap();
 
     // No parse error.
@@ -46,32 +41,25 @@ fn test_analyze_smoke() {
         .iter()
         .all(|s| !matches!(s, Statement::Error(_))));
 
-    // Inspect the top-level variables.
-    let variables = file.variables_at(0);
-    assert!(variables.get("enable_opt").is_some());
-    assert!(variables.get("_lib").is_some());
-    assert!(variables.get("is_linux").is_some());
+    // Inspect the environment.
+    let environment = analyzer
+        .analyze_environment(&file, 0, Instant::now())
+        .unwrap();
+    assert!(environment.variables.contains_key("enable_opt"));
+    assert!(environment.variables.contains_key("_lib"));
+    assert!(environment.variables.contains_key("is_linux"));
 }
 
 #[test]
 fn test_analyze_cycles() {
     let request_time = Instant::now();
     let storage = Arc::new(Mutex::new(DocumentStorage::new()));
-    let analyzer = Analyzer::new(&storage);
-    let finder = WorkspaceFinder::new(None);
+    let analyzer = Analyzer::new(&storage, WorkspaceFinder::new(None));
 
     assert!(analyzer
-        .analyze(
-            &testdata("workspaces/cycles/ok1.gni"),
-            &finder,
-            request_time
-        )
+        .analyze_file(&testdata("workspaces/cycles/ok1.gni"), request_time)
         .is_ok());
     assert!(analyzer
-        .analyze(
-            &testdata("workspaces/cycles/bad1.gni"),
-            &finder,
-            request_time
-        )
+        .analyze_file(&testdata("workspaces/cycles/bad1.gni"), request_time)
         .is_ok());
 }

@@ -16,10 +16,10 @@ use std::path::{Path, PathBuf};
 
 use either::Either;
 use itertools::Itertools;
-use tower_lsp::lsp_types::{Position, TextDocumentIdentifier, Url};
+use tower_lsp::lsp_types::{TextDocumentIdentifier, Url};
 
 use crate::{
-    analyzer::{AnalyzedFile, ShallowAnalyzedFile, Target, Template, Variable},
+    analyzer::{AnalyzedFile, Target, Template, Variable},
     common::error::{Error, Result},
     parser::{Identifier, Node},
 };
@@ -31,31 +31,22 @@ pub fn get_text_document_path(text_document: &TextDocumentIdentifier) -> Result<
         .map_err(|_| Error::General(format!("invalid file URI: {}", text_document.uri)))
 }
 
-pub fn lookup_identifier_at(file: &AnalyzedFile, position: Position) -> Option<&Identifier<'_>> {
-    let offset = file.document.line_index.offset(position)?;
+pub fn lookup_identifier_at(file: &AnalyzedFile, pos: usize) -> Option<&Identifier<'_>> {
     file.ast
         .identifiers()
-        .find(|ident| ident.span.start() <= offset && offset <= ident.span.end())
+        .find(|ident| ident.span.start() <= pos && pos <= ident.span.end())
 }
 
-pub fn lookup_target_name_string_at(
-    file: &AnalyzedFile,
-    position: Position,
-) -> Option<Target<'_, '_>> {
-    let offset = file.document.line_index.offset(position)?;
+pub fn lookup_target_name_string_at(file: &AnalyzedFile, pos: usize) -> Option<Target<'_, '_>> {
     file.analyzed_root.targets().find(|target| {
-        target.call.args[0].span().start() <= offset && offset <= target.call.args[0].span().end()
+        target.call.args[0].span().start() <= pos && pos <= target.call.args[0].span().end()
     })
 }
 
-pub fn find_target<'a>(
-    file: &'a ShallowAnalyzedFile,
-    name: &str,
-) -> Option<&'a Target<'static, 'static>> {
+pub fn find_target<'a>(file: &'a AnalyzedFile, name: &str) -> Option<&'a Target<'static, 'static>> {
     let targets: Vec<_> = file
-        .environment
+        .exports
         .targets
-        .locals()
         .values()
         .sorted_by_key(|target| (&target.document.path, target.call.span.start()))
         .collect();

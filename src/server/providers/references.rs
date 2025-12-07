@@ -87,13 +87,17 @@ pub async fn references(
     }
 
     let path = get_text_document_path(&params.text_document_position.text_document)?;
-    let current_file = context
-        .analyzer
-        .analyze(&path, &context.finder, context.request_time)?;
+    let current_file = context.analyzer.analyze_file(&path, context.request_time)?;
 
-    let position = params.text_document_position.position;
+    let Some(pos) = current_file
+        .document
+        .line_index
+        .offset(params.text_document_position.position)
+    else {
+        return Ok(None);
+    };
 
-    if let Some(target) = lookup_target_name_string_at(&current_file, position) {
+    if let Some(target) = lookup_target_name_string_at(&current_file, pos) {
         return target_references(context, &current_file, target.name).await;
     };
 

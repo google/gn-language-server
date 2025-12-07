@@ -34,56 +34,50 @@ pub async fn goto_definition(
     params: GotoDefinitionParams,
 ) -> Result<Option<GotoDefinitionResponse>> {
     let path = get_text_document_path(&params.text_document_position_params.text_document)?;
-    let current_file = context
-        .analyzer
-        .analyze(&path, &context.finder, context.request_time)?;
+    let current_file = context.analyzer.analyze_file(&path, context.request_time)?;
 
-    // Check links first.
-    if let Some(offset) = current_file
+    let Some(pos) = current_file
         .document
         .line_index
         .offset(params.text_document_position_params.position)
+    else {
+        return Ok(None);
+    };
+
+    // Check links first.
+    if let Some(link) = current_file
+        .links
+        .iter()
+        .find(|link| link.span().start() <= pos && pos <= link.span().end())
     {
-        if let Some(link) = current_file
-            .links
-            .iter()
-            .find(|link| link.span().start() <= offset && offset <= link.span().end())
-        {
-            let (path, position) = match link {
-                AnalyzedLink::File { path, .. } => (path, Position::default()),
-                AnalyzedLink::Target { path, name, .. } => {
-                    let target_file = context.analyzer.analyze_shallow(
-                        path,
-                        &context.finder,
-                        context.request_time,
-                    )?;
-                    (
-                        path,
-                        find_target(&target_file, name)
-                            .map(|target| {
-                                target
-                                    .document
-                                    .line_index
-                                    .position(target.call.span.start())
-                            })
-                            .unwrap_or_default(),
-                    )
-                }
-            };
-            return Ok(Some(GotoDefinitionResponse::Scalar(Location {
-                uri: Url::from_file_path(path).unwrap(),
-                range: Range {
-                    start: position,
-                    end: position,
-                },
-            })));
-        }
+        let (path, position) = match link {
+            AnalyzedLink::File { path, .. } => (path, Position::default()),
+            AnalyzedLink::Target { path, name, .. } => {
+                let target_file = context.analyzer.analyze_file(path, context.request_time)?;
+                (
+                    path,
+                    find_target(&target_file, name)
+                        .map(|target| {
+                            target
+                                .document
+                                .line_index
+                                .position(target.call.span.start())
+                        })
+                        .unwrap_or_default(),
+                )
+            }
+        };
+        return Ok(Some(GotoDefinitionResponse::Scalar(Location {
+            uri: Url::from_file_path(path).unwrap(),
+            range: Range {
+                start: position,
+                end: position,
+            },
+        })));
     }
 
     // Check template target names.
-    if let Some(target) =
-        lookup_target_name_string_at(&current_file, params.text_document_position_params.position)
-    {
+    if let Some(target) = lookup_target_name_string_at(&current_file, pos) {
         // Return the self link to fall back to finding references.
         return Ok(Some(GotoDefinitionResponse::Scalar(Location {
             uri: params.text_document_position_params.text_document.uri,
@@ -94,33 +88,32 @@ pub async fn goto_definition(
         })));
     }
 
-    let Some(ident) =
-        lookup_identifier_at(&current_file, params.text_document_position_params.position)
-    else {
+    let Some(ident) = lookup_identifier_at(&current_file, pos) else {
         return Ok(None);
     };
+
+    let environment =
+        context
+            .analyzer
+            .analyze_environment(&current_file, pos, context.request_time)?;
 
     let mut links: Vec<LocationLink> = Vec::new();
 
     // Check templates.
-    links.extend(
-        current_file
-            .templates_at(ident.span.start())
-            .get(ident.name)
-            .map(|template| LocationLink {
-                origin_selection_range: Some(current_file.document.line_index.range(ident.span)),
-                target_uri: Url::from_file_path(&template.document.path).unwrap(),
-                target_range: template.document.line_index.range(template.call.span),
-                target_selection_range: template
-                    .document
-                    .line_index
-                    .range(template.call.function.span),
-            }),
-    );
+    links.extend(environment.templates.get(ident.name).map(|template| {
+        LocationLink {
+            origin_selection_range: Some(current_file.document.line_index.range(ident.span)),
+            target_uri: Url::from_file_path(&template.document.path).unwrap(),
+            target_range: template.document.line_index.range(template.call.span),
+            target_selection_range: template
+                .document
+                .line_index
+                .range(template.call.function.span),
+        }
+    }));
 
     // Check variables.
-    let variables = current_file.variables_at(ident.span.start());
-    if let Some(variable) = variables.get(ident.name) {
+    if let Some(variable) = environment.variables.get(ident.name) {
         links.extend(variable.assignments.values().map(|assignment| {
             let span = match &assignment.assignment_or_call {
                 Either::Left(assignment) => assignment.span,

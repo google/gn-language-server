@@ -28,14 +28,16 @@ pub async fn publish_diagnostics(context: &RequestContext, uri: &Url) {
         return;
     }
 
-    let Ok(current_file) = context
-        .analyzer
-        .analyze(&path, &context.finder, context.request_time)
-    else {
+    let Ok(current_file) = context.analyzer.analyze_file(&path, context.request_time) else {
         return;
     };
 
-    let diagnostics = compute_diagnostics(&current_file.analyzed_root, &config);
+    let diagnostics = compute_diagnostics(
+        &current_file,
+        &config,
+        &context.analyzer,
+        context.request_time,
+    );
 
     let version = if let DocumentVersion::InMemory { revision } = current_file.document.version {
         Some(revision)

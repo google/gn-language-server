@@ -151,8 +151,7 @@ impl<'i, 'p, 'a> Iterator for AnalyzedTopLevelStatements<'i, 'p, 'a> {
             | AnalyzedStatement::ForwardVariablesFrom(_)
             | AnalyzedStatement::Template(_)
             | AnalyzedStatement::Target(_)
-            | AnalyzedStatement::BuiltinCall(_)
-            | AnalyzedStatement::SyntheticImport(_) => {}
+            | AnalyzedStatement::BuiltinCall(_) => {}
         }
         Some(statement)
     }

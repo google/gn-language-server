@@ -12,21 +12,27 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use std::sync::{Arc, OnceLock};
+use std::{
+    sync::{Arc, OnceLock},
+    time::Instant,
+};
 
 use either::Either;
 use tower_lsp::lsp_types::{Diagnostic, DiagnosticSeverity};
 
 use crate::{
-    analyzer::{AnalyzedBlock, AnalyzedStatement, TopLevelStatementsExt, Variable, VariableScope},
-    common::{builtins::BUILTINS, storage::Document},
+    analyzer::{
+        AnalyzedBlock, AnalyzedFile, AnalyzedStatement, Analyzer, TopLevelStatementsExt, Variable,
+        VariableMap,
+    },
+    common::{builtins::BUILTINS, utils::is_exported},
     parser::{Expr, Identifier, LValue, PrimaryExpr},
 };
 
-fn builtin_scope() -> &'static Arc<VariableScope<'static, 'static>> {
-    static SCOPE: OnceLock<Arc<VariableScope<'static, 'static>>> = OnceLock::new();
+fn builtin_scope() -> &'static Arc<VariableMap<'static, 'static>> {
+    static SCOPE: OnceLock<Arc<VariableMap<'static, 'static>>> = OnceLock::new();
     SCOPE.get_or_init(|| {
-        let mut scope = VariableScope::new();
+        let mut scope = VariableMap::new();
         for keyword in ["true", "false"] {
             scope.insert(keyword, Variable::new(false));
         }
@@ -39,20 +45,18 @@ fn builtin_scope() -> &'static Arc<VariableScope<'static, 'static>> {
 
 #[derive(Clone)]
 enum VariablesTracker<'i, 'p> {
-    Ok(VariableScope<'i, 'p>),
+    Ok(VariableMap<'i, 'p>),
     Untrackable,
 }
 
 impl<'i, 'p> VariablesTracker<'i, 'p> {
     pub fn new() -> Self {
-        let mut scope = VariableScope::new();
-        scope.import(builtin_scope());
-        Self::Ok(scope)
+        Self::Ok(builtin_scope().as_ref().clone())
     }
 
     pub fn may_contain(&self, name: &str) -> bool {
         match self {
-            VariablesTracker::Ok(env) => env.contains(name),
+            VariablesTracker::Ok(env) => env.contains_key(name),
             VariablesTracker::Untrackable => true,
         }
     }
@@ -66,28 +70,30 @@ impl<'i, 'p> VariablesTracker<'i, 'p> {
         }
     }
 
-    pub fn import(&mut self, other: &Arc<VariableScope<'i, 'p>>) {
-        match self {
-            VariablesTracker::Ok(env) => env.import(other),
-            VariablesTracker::Untrackable => {}
-        }
-    }
-
     pub fn set_untrackable(&mut self) {
         *self = VariablesTracker::Untrackable;
+    }
+}
+
+impl<'i, 'p> Extend<(&'i str, Variable<'i, 'p>)> for VariablesTracker<'i, 'p> {
+    fn extend<T: IntoIterator<Item = (&'i str, Variable<'i, 'p>)>>(&mut self, iter: T) {
+        match self {
+            VariablesTracker::Ok(env) => env.extend(iter),
+            VariablesTracker::Untrackable => {}
+        }
     }
 }
 
 impl<'i> Identifier<'i> {
     fn collect_undefined_identifiers(
         &self,
-        document: &'i Document,
+        file: &'i AnalyzedFile,
         tracker: &VariablesTracker<'i, '_>,
         diagnostics: &mut Vec<Diagnostic>,
     ) {
         if !tracker.may_contain(self.name) {
             diagnostics.push(Diagnostic {
-                range: document.line_index.range(self.span),
+                range: file.document.line_index.range(self.span),
                 severity: Some(DiagnosticSeverity::ERROR),
                 message: format!("{} not defined", self.name),
                 ..Default::default()
@@ -99,42 +105,64 @@ impl<'i> Identifier<'i> {
 impl<'i> PrimaryExpr<'i> {
     fn collect_undefined_identifiers(
         &self,
-        document: &'i Document,
+        file: &'i AnalyzedFile,
+        analyzer: &Analyzer,
+        request_time: Instant,
         tracker: &VariablesTracker<'i, '_>,
         diagnostics: &mut Vec<Diagnostic>,
     ) {
         match self {
             PrimaryExpr::Identifier(identifier) => {
-                identifier.collect_undefined_identifiers(document, tracker, diagnostics);
+                identifier.collect_undefined_identifiers(file, tracker, diagnostics);
             }
             PrimaryExpr::Call(call) => {
                 call.function
-                    .collect_undefined_identifiers(document, tracker, diagnostics);
+                    .collect_undefined_identifiers(file, tracker, diagnostics);
                 for expr in &call.args {
-                    expr.collect_undefined_identifiers(document, tracker, diagnostics);
+                    expr.collect_undefined_identifiers(
+                        file,
+                        analyzer,
+                        request_time,
+                        tracker,
+                        diagnostics,
+                    );
                 }
             }
             PrimaryExpr::ArrayAccess(array_access) => {
                 array_access
                     .array
-                    .collect_undefined_identifiers(document, tracker, diagnostics);
-                array_access
-                    .index
-                    .collect_undefined_identifiers(document, tracker, diagnostics);
+                    .collect_undefined_identifiers(file, tracker, diagnostics);
+                array_access.index.collect_undefined_identifiers(
+                    file,
+                    analyzer,
+                    request_time,
+                    tracker,
+                    diagnostics,
+                );
             }
             PrimaryExpr::ScopeAccess(scope_access) => {
                 scope_access
                     .scope
-                    .collect_undefined_identifiers(document, tracker, diagnostics);
+                    .collect_undefined_identifiers(file, tracker, diagnostics);
             }
             PrimaryExpr::ParenExpr(paren_expr) => {
-                paren_expr
-                    .expr
-                    .collect_undefined_identifiers(document, tracker, diagnostics);
+                paren_expr.expr.collect_undefined_identifiers(
+                    file,
+                    analyzer,
+                    request_time,
+                    tracker,
+                    diagnostics,
+                );
             }
             PrimaryExpr::List(list_literal) => {
                 for expr in &list_literal.values {
-                    expr.collect_undefined_identifiers(document, tracker, diagnostics);
+                    expr.collect_undefined_identifiers(
+                        file,
+                        analyzer,
+                        request_time,
+                        tracker,
+                        diagnostics,
+                    );
                 }
             }
             PrimaryExpr::Integer(_)
@@ -148,26 +176,46 @@ impl<'i> PrimaryExpr<'i> {
 impl<'i> Expr<'i> {
     fn collect_undefined_identifiers(
         &self,
-        document: &'i Document,
+        file: &'i AnalyzedFile,
+        analyzer: &Analyzer,
+        request_time: Instant,
         tracker: &VariablesTracker<'i, '_>,
         diagnostics: &mut Vec<Diagnostic>,
     ) {
         match self {
             Expr::Primary(primary_expr) => {
-                primary_expr.collect_undefined_identifiers(document, tracker, diagnostics);
+                primary_expr.collect_undefined_identifiers(
+                    file,
+                    analyzer,
+                    request_time,
+                    tracker,
+                    diagnostics,
+                );
             }
             Expr::Unary(unary_expr) => {
-                unary_expr
-                    .expr
-                    .collect_undefined_identifiers(document, tracker, diagnostics);
+                unary_expr.expr.collect_undefined_identifiers(
+                    file,
+                    analyzer,
+                    request_time,
+                    tracker,
+                    diagnostics,
+                );
             }
             Expr::Binary(binary_expr) => {
-                binary_expr
-                    .lhs
-                    .collect_undefined_identifiers(document, tracker, diagnostics);
-                binary_expr
-                    .rhs
-                    .collect_undefined_identifiers(document, tracker, diagnostics);
+                binary_expr.lhs.collect_undefined_identifiers(
+                    file,
+                    analyzer,
+                    request_time,
+                    tracker,
+                    diagnostics,
+                );
+                binary_expr.rhs.collect_undefined_identifiers(
+                    file,
+                    analyzer,
+                    request_time,
+                    tracker,
+                    diagnostics,
+                );
             }
         }
     }
@@ -176,23 +224,29 @@ impl<'i> Expr<'i> {
 impl<'i, 'p> AnalyzedBlock<'i, 'p> {
     fn collect_undefined_identifiers(
         &self,
+        file: &AnalyzedFile,
+        analyzer: &Analyzer,
+        request_time: Instant,
         tracker: &mut VariablesTracker<'i, 'p>,
         diagnostics: &mut Vec<Diagnostic>,
     ) {
-        let document = self.document;
         for statement in self.top_level_statements() {
             // Collect undefined identifiers in expressions.
             match statement {
                 AnalyzedStatement::Assignment(assignment) => {
                     if let LValue::ArrayAccess(array_access) = &assignment.assignment.lvalue {
                         array_access.index.collect_undefined_identifiers(
-                            document,
+                            file,
+                            analyzer,
+                            request_time,
                             tracker,
                             diagnostics,
                         );
                     }
                     assignment.assignment.rvalue.collect_undefined_identifiers(
-                        document,
+                        file,
+                        analyzer,
+                        request_time,
                         tracker,
                         diagnostics,
                     );
@@ -203,7 +257,13 @@ impl<'i, 'p> AnalyzedBlock<'i, 'p> {
                         current_condition
                             .condition
                             .condition
-                            .collect_undefined_identifiers(document, tracker, diagnostics);
+                            .collect_undefined_identifiers(
+                                file,
+                                analyzer,
+                                request_time,
+                                tracker,
+                                diagnostics,
+                            );
                         match &current_condition.else_block {
                             Some(Either::Left(next_condition)) => {
                                 current_condition = next_condition;
@@ -214,44 +274,74 @@ impl<'i, 'p> AnalyzedBlock<'i, 'p> {
                 }
                 AnalyzedStatement::Foreach(foreach) => {
                     foreach.loop_items.collect_undefined_identifiers(
-                        document,
+                        file,
+                        analyzer,
+                        request_time,
                         tracker,
                         diagnostics,
                     );
                 }
                 AnalyzedStatement::ForwardVariablesFrom(forward_variables_from) => {
                     for expr in &forward_variables_from.call.args {
-                        expr.collect_undefined_identifiers(document, tracker, diagnostics);
+                        expr.collect_undefined_identifiers(
+                            file,
+                            analyzer,
+                            request_time,
+                            tracker,
+                            diagnostics,
+                        );
                     }
                 }
                 AnalyzedStatement::Target(target) => {
                     for expr in &target.call.args {
-                        expr.collect_undefined_identifiers(document, tracker, diagnostics);
+                        expr.collect_undefined_identifiers(
+                            file,
+                            analyzer,
+                            request_time,
+                            tracker,
+                            diagnostics,
+                        );
                     }
                 }
                 AnalyzedStatement::Template(template) => {
                     for expr in &template.call.args {
-                        expr.collect_undefined_identifiers(document, tracker, diagnostics);
+                        expr.collect_undefined_identifiers(
+                            file,
+                            analyzer,
+                            request_time,
+                            tracker,
+                            diagnostics,
+                        );
                     }
                 }
                 AnalyzedStatement::BuiltinCall(builtin_call) => {
                     builtin_call.call.function.collect_undefined_identifiers(
-                        document,
+                        file,
                         tracker,
                         diagnostics,
                     );
                     for expr in &builtin_call.call.args {
-                        expr.collect_undefined_identifiers(document, tracker, diagnostics);
+                        expr.collect_undefined_identifiers(
+                            file,
+                            analyzer,
+                            request_time,
+                            tracker,
+                            diagnostics,
+                        );
                     }
                 }
-                AnalyzedStatement::DeclareArgs(_)
-                | AnalyzedStatement::Import(_)
-                | AnalyzedStatement::SyntheticImport(_) => {}
+                AnalyzedStatement::DeclareArgs(_) | AnalyzedStatement::Import(_) => {}
             }
 
             // Collect undefined identifiers in subscopes.
             for subscope in statement.subscopes() {
-                subscope.collect_undefined_identifiers(&mut tracker.clone(), diagnostics);
+                subscope.collect_undefined_identifiers(
+                    file,
+                    analyzer,
+                    request_time,
+                    &mut tracker.clone(),
+                    diagnostics,
+                );
             }
 
             // Update variables.
@@ -275,10 +365,20 @@ impl<'i, 'p> AnalyzedBlock<'i, 'p> {
                     }
                 }
                 AnalyzedStatement::Import(import) => {
-                    tracker.import(&import.file.environment.variables);
-                }
-                AnalyzedStatement::SyntheticImport(synthetic_import) => {
-                    tracker.import(&synthetic_import.file.environment.variables);
+                    if let Ok(imported_file) = analyzer.analyze_file(&import.path, request_time) {
+                        if let Ok(imported_environment) = analyzer.analyze_environment(
+                            &imported_file,
+                            imported_file.document.data.len(),
+                            request_time,
+                        ) {
+                            tracker.extend(
+                                imported_environment
+                                    .variables
+                                    .into_iter()
+                                    .filter(|(name, _)| is_exported(name)),
+                            );
+                        }
+                    }
                 }
                 AnalyzedStatement::Conditions(_)
                 | AnalyzedStatement::DeclareArgs(_)
@@ -290,9 +390,17 @@ impl<'i, 'p> AnalyzedBlock<'i, 'p> {
     }
 }
 
-pub fn collect_undefined_identifiers<'i, 'p>(
-    block: &AnalyzedBlock<'i, 'p>,
+pub fn collect_undefined_identifiers(
+    file: &AnalyzedFile,
+    analyzer: &Analyzer,
+    request_time: Instant,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
-    block.collect_undefined_identifiers(&mut VariablesTracker::new(), diagnostics);
+    file.analyzed_root.collect_undefined_identifiers(
+        file,
+        analyzer,
+        request_time,
+        &mut VariablesTracker::new(),
+        diagnostics,
+    );
 }

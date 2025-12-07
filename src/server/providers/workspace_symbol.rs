@@ -17,7 +17,7 @@ use std::collections::HashSet;
 use either::Either;
 use tower_lsp::lsp_types::{Location, SymbolInformation, SymbolKind, Url, WorkspaceSymbolParams};
 
-use crate::{analyzer::ShallowAnalyzedFile, common::error::Result, server::RequestContext};
+use crate::{analyzer::AnalyzedFile, common::error::Result, server::RequestContext};
 
 pub async fn workspace_symbol(
     context: &RequestContext,
@@ -70,11 +70,11 @@ pub async fn workspace_symbol(
 }
 
 #[allow(deprecated)]
-fn extract_symbols(file: &ShallowAnalyzedFile, query: &str) -> Vec<SymbolInformation> {
+fn extract_symbols(file: &AnalyzedFile, query: &str) -> Vec<SymbolInformation> {
     let mut symbols = Vec::new();
     let uri = Url::from_file_path(&file.document.path).unwrap();
 
-    for (name, variable) in file.environment.variables.locals() {
+    for (name, variable) in file.exports.variables.as_ref() {
         if !name.to_lowercase().contains(query) {
             continue;
         }
@@ -101,7 +101,7 @@ fn extract_symbols(file: &ShallowAnalyzedFile, query: &str) -> Vec<SymbolInforma
         }
     }
 
-    for (name, template) in file.environment.templates.locals() {
+    for (name, template) in file.exports.templates.as_ref() {
         if !name.to_lowercase().contains(query) {
             continue;
         }

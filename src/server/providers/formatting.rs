@@ -45,7 +45,7 @@ pub async fn formatting(
                 gn_path.display()
             )));
         }
-    } else if let Some(gn_path) = find_gn_binary(context.finder.find_for(&file_path)) {
+    } else if let Some(gn_path) = find_gn_binary(context.analyzer.finder().find_for(&file_path)) {
         gn_path
     } else {
         return Err(Error::General(

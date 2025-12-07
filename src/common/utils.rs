@@ -22,6 +22,10 @@ use tokio::sync::SetOnce;
 use tower_lsp::lsp_types::{Position, Range};
 use walkdir::WalkDir;
 
+pub fn is_exported(name: &str) -> bool {
+    !name.starts_with("_")
+}
+
 pub fn walk_source_dirs(root: &Path) -> impl Iterator<Item = PathBuf> {
     WalkDir::new(root)
         .into_iter()

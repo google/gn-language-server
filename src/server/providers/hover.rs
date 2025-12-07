@@ -27,21 +27,29 @@ use crate::{
 
 pub async fn hover(context: &RequestContext, params: HoverParams) -> Result<Option<Hover>> {
     let path = get_text_document_path(&params.text_document_position_params.text_document)?;
-    let current_file = context
-        .analyzer
-        .analyze(&path, &context.finder, context.request_time)?;
+    let current_file = context.analyzer.analyze_file(&path, context.request_time)?;
 
-    let Some(ident) =
-        lookup_identifier_at(&current_file, params.text_document_position_params.position)
+    let Some(pos) = current_file
+        .document
+        .line_index
+        .offset(params.text_document_position_params.position)
     else {
         return Ok(None);
     };
 
+    let Some(ident) = lookup_identifier_at(&current_file, pos) else {
+        return Ok(None);
+    };
+
+    let environment =
+        context
+            .analyzer
+            .analyze_environment(&current_file, pos, context.request_time)?;
+
     let mut sections: Vec<Vec<MarkedString>> = Vec::new();
 
     // Check templates.
-    let templates = current_file.templates_at(ident.span.start());
-    if let Some(template) = templates.get(ident.name) {
+    if let Some(template) = environment.templates.get(ident.name) {
         sections.push(
             format_template_help(template, &current_file.workspace_root)
                 .into_iter()
@@ -51,8 +59,7 @@ pub async fn hover(context: &RequestContext, params: HoverParams) -> Result<Opti
     }
 
     // Check variables.
-    let variables = current_file.variables_at(ident.span.start());
-    if let Some(variable) = variables.get(ident.name) {
+    if let Some(variable) = environment.variables.get(ident.name) {
         sections.push(
             format_variable_help(variable, &current_file.workspace_root)
                 .into_iter()

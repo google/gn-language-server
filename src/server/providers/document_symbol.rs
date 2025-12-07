@@ -24,9 +24,7 @@ pub async fn document_symbol(
     params: DocumentSymbolParams,
 ) -> Result<Option<DocumentSymbolResponse>> {
     let path = get_text_document_path(&params.text_document)?;
-    let current_file = context
-        .analyzer
-        .analyze(&path, &context.finder, context.request_time)?;
+    let current_file = context.analyzer.analyze_file(&path, context.request_time)?;
 
     Ok(Some(DocumentSymbolResponse::Nested(
         current_file.symbols.clone(),

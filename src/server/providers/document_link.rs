@@ -36,9 +36,7 @@ pub async fn document_link(
     params: DocumentLinkParams,
 ) -> Result<Option<Vec<DocumentLink>>> {
     let path = get_text_document_path(&params.text_document)?;
-    let current_file = context
-        .analyzer
-        .analyze(&path, &context.finder, context.request_time)?;
+    let current_file = context.analyzer.analyze_file(&path, context.request_time)?;
 
     let links = current_file
         .links
@@ -80,10 +78,9 @@ pub async fn document_link_resolve(
         return Err(Error::General("corrupted target link data".to_string()));
     };
 
-    let target_file =
-        context
-            .analyzer
-            .analyze_shallow(&data.path, &context.finder, context.request_time)?;
+    let target_file = context
+        .analyzer
+        .analyze_file(&data.path, context.request_time)?;
 
     let position = find_target(&target_file, &data.name)
         .map(|target| {

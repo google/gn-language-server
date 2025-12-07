@@ -12,10 +12,12 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+use std::time::Instant;
+
 use tower_lsp::lsp_types::Diagnostic;
 
 use crate::{
-    analyzer::AnalyzedBlock,
+    analyzer::{AnalyzedFile, Analyzer},
     common::config::Configurations,
     diagnostics::{syntax::collect_syntax_errors, undefined::collect_undefined_identifiers},
 };
@@ -24,17 +26,19 @@ mod syntax;
 mod undefined;
 
 pub fn compute_diagnostics(
-    analyzed_root: &AnalyzedBlock,
+    file: &AnalyzedFile,
     config: &Configurations,
+    analyzer: &Analyzer,
+    request_time: Instant,
 ) -> Vec<Diagnostic> {
     let mut diagnostics = Vec::new();
     collect_syntax_errors(
-        analyzed_root.block,
-        analyzed_root.document,
+        file.analyzed_root.block,
+        file.analyzed_root.document,
         &mut diagnostics,
     );
     if config.experimental.undefined_variable_analysis {
-        collect_undefined_identifiers(analyzed_root, &mut diagnostics);
+        collect_undefined_identifiers(file, analyzer, request_time, &mut diagnostics);
     }
     diagnostics
 }

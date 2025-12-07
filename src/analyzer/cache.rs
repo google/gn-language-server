@@ -24,9 +24,7 @@ const VERIFY_INTERVAL: Duration = Duration::from_secs(5);
 
 fn compute_next_verify(t: Instant, version: DocumentVersion) -> Instant {
     match version {
-        DocumentVersion::OnDisk { .. }
-        | DocumentVersion::IoError
-        | DocumentVersion::AnalysisError => t + VERIFY_INTERVAL,
+        DocumentVersion::OnDisk { .. } | DocumentVersion::IoError => t + VERIFY_INTERVAL,
         // Do not skip verification for in-memory documents.
         DocumentVersion::InMemory { .. } => t,
     }
@@ -37,24 +35,17 @@ enum CacheState {
     Fresh { expires: Instant },
 }
 
-pub struct CacheNode {
+pub struct CacheKey {
     path: PathBuf,
     version: DocumentVersion,
-    deps: Vec<Arc<CacheNode>>,
     state: RwLock<CacheState>,
 }
 
-impl CacheNode {
-    pub fn new(
-        path: PathBuf,
-        version: DocumentVersion,
-        deps: Vec<Arc<CacheNode>>,
-        request_time: Instant,
-    ) -> Arc<Self> {
+impl CacheKey {
+    pub fn new(path: PathBuf, version: DocumentVersion, request_time: Instant) -> Arc<Self> {
         Arc::new(Self {
             path,
             version,
-            deps,
             state: RwLock::new(CacheState::Fresh {
                 expires: compute_next_verify(request_time, version),
             }),
@@ -68,10 +59,6 @@ impl CacheNode {
             CacheState::Fresh { expires } => *expires,
         };
         if request_time <= expires {
-            if !self.verify_deps(request_time, storage) {
-                *self.state.write().unwrap() = CacheState::Stale;
-                return false;
-            }
             return true;
         }
 
@@ -82,10 +69,6 @@ impl CacheNode {
             CacheState::Fresh { expires } => *expires,
         };
         if request_time <= expires {
-            if !self.verify_deps(request_time, storage) {
-                *state_guard = CacheState::Stale;
-                return false;
-            }
             return true;
         }
 
@@ -95,23 +78,9 @@ impl CacheNode {
             return false;
         }
 
-        if !self.verify_deps(request_time, storage) {
-            *state_guard = CacheState::Stale;
-            return false;
-        }
-
         *state_guard = CacheState::Fresh {
             expires: compute_next_verify(request_time, self.version),
         };
-        true
-    }
-
-    fn verify_deps(&self, request_time: Instant, storage: &DocumentStorage) -> bool {
-        for dep in &self.deps {
-            if !dep.verify(request_time, storage) {
-                return false;
-            }
-        }
         true
     }
 }

@@ -13,7 +13,7 @@
 // limitations under the License.
 
 use std::{
-    collections::{BTreeSet, HashMap},
+    collections::HashMap,
     path::{Path, PathBuf},
     pin::Pin,
     sync::Arc,
@@ -25,12 +25,12 @@ use pest::Span;
 use tower_lsp::lsp_types::DocumentSymbol;
 
 use crate::{
-    analyzer::{cache::CacheNode, toplevel::TopLevelStatementsExt, utils::resolve_path},
+    analyzer::{cache::CacheKey, toplevel::TopLevelStatementsExt, utils::resolve_path},
     common::{
         storage::{Document, DocumentVersion},
         utils::parse_simple_literal,
     },
-    parser::{parse, Assignment, Block, Call, Comments, Condition, Expr, Identifier},
+    parser::{Assignment, Block, Call, Comments, Condition, Expr, Identifier},
 };
 
 #[derive(Clone, Debug, Eq, Hash, PartialEq)]
@@ -52,172 +52,52 @@ impl WorkspaceContext {
     }
 }
 
-#[derive(Clone)]
-pub struct Environment<'i, T> {
-    imports: Vec<Arc<Environment<'i, T>>>,
-    locals: HashMap<&'i str, T>,
-}
-
-impl<T> Default for Environment<'_, T> {
-    fn default() -> Self {
-        Self::new()
-    }
-}
-
-impl<'i, T> Environment<'i, T> {
-    pub fn new() -> Self {
-        Self {
-            imports: Vec::new(),
-            locals: HashMap::new(),
-        }
-    }
-
-    pub fn locals(&self) -> &HashMap<&'i str, T> {
-        &self.locals
-    }
-
-    pub fn get(&self, name: &str) -> Option<&T> {
-        self.locals
-            .get(name)
-            .or_else(|| self.imports.iter().find_map(|import| import.get(name)))
-    }
-
-    pub fn contains(&self, name: &str) -> bool {
-        self.locals.contains_key(name) || self.imports.iter().any(|import| import.contains(name))
-    }
-
-    pub fn import(&mut self, other: &Arc<Environment<'i, T>>) {
-        self.imports.push(Arc::clone(other));
-    }
-
-    pub fn insert(&mut self, name: &'i str, item: T) {
-        self.locals.insert(name, item);
-    }
-
-    pub fn ensure(&mut self, name: &'i str, f: impl FnOnce() -> T) -> &mut T {
-        self.locals.entry(name).or_insert_with(f)
-    }
-
-    pub fn merge(&mut self, other: Environment<'i, T>) {
-        for (name, item) in other.locals {
-            self.insert(name, item);
-        }
-        self.imports.extend(other.imports);
-    }
-}
-
-impl<'i, T> Environment<'i, T>
-where
-    T: Clone,
-{
-    pub fn all_items(&self) -> HashMap<&'i str, T> {
-        let mut items = HashMap::new();
-        self.collect_items(&mut items, &mut Default::default());
-        items
-    }
-
-    fn collect_items<'e>(
-        &'e self,
-        items: &mut HashMap<&'i str, T>,
-        visited: &mut BTreeSet<*const Self>,
-    ) {
-        if !visited.insert(self as *const Self) {
-            return;
-        }
-        for import in &self.imports {
-            import.collect_items(items, visited);
-        }
-        for (name, item) in &self.locals {
-            items.insert(name, item.clone());
-        }
-    }
-}
-
-pub struct ShallowAnalyzedFile {
-    pub document: Pin<Arc<Document>>,
-    #[allow(unused)] // Backing environment
-    pub ast: Pin<Box<Block<'static>>>,
-    pub environment: FileEnvironment<'static, 'static>,
-    pub links: Vec<AnalyzedLink<'static>>,
-    pub node: Arc<CacheNode>,
-}
-
-impl ShallowAnalyzedFile {
-    pub fn new(
-        document: Pin<Arc<Document>>,
-        ast: Pin<Box<Block<'static>>>,
-        environment: FileEnvironment<'static, 'static>,
-        links: Vec<AnalyzedLink<'static>>,
-        deps: Vec<Arc<CacheNode>>,
-        request_time: Instant,
-    ) -> Pin<Arc<Self>> {
-        let node = CacheNode::new(document.path.clone(), document.version, deps, request_time);
-        Arc::pin(Self {
-            document,
-            ast,
-            environment,
-            links,
-            node,
-        })
-    }
-
-    pub fn error(path: &Path, request_time: Instant) -> Pin<Arc<Self>> {
-        let document = Arc::pin(Document::analysis_error(path));
-        let ast = Box::pin(parse(&document.data));
-        let environment = FileEnvironment::new();
-        // SAFETY: ast's contents are backed by pinned document.
-        let ast = unsafe { std::mem::transmute::<Pin<Box<Block>>, Pin<Box<Block>>>(ast) };
-        // SAFETY: environment's contents are backed by pinned document and pinned ast.
-        let environment =
-            unsafe { std::mem::transmute::<FileEnvironment, FileEnvironment>(environment) };
-        Self::new(
-            document,
-            ast,
-            environment,
-            Vec::new(),
-            Vec::new(),
-            request_time,
-        )
-    }
-}
+pub type StrKeyedMap<'i, T> = HashMap<&'i str, T>;
+pub type VariableMap<'i, 'p> = StrKeyedMap<'i, Variable<'i, 'p>>;
+pub type TemplateMap<'i, 'p> = StrKeyedMap<'i, Template<'i, 'p>>;
+pub type TargetMap<'i, 'p> = StrKeyedMap<'i, Target<'i, 'p>>;
 
 #[derive(Default)]
-pub struct MutableFileEnvironment<'i, 'p> {
-    pub variables: VariableScope<'i, 'p>,
-    pub templates: TemplateScope<'i, 'p>,
-    pub targets: TargetScope<'i, 'p>,
+pub struct MutableFileExports<'i, 'p> {
+    pub variables: VariableMap<'i, 'p>,
+    pub templates: TemplateMap<'i, 'p>,
+    pub targets: TargetMap<'i, 'p>,
+    pub children: Vec<PathBuf>,
 }
 
-impl MutableFileEnvironment<'_, '_> {
+impl MutableFileExports<'_, '_> {
     pub fn new() -> Self {
         Default::default()
     }
 }
 
-impl<'i, 'p> MutableFileEnvironment<'i, 'p> {
-    pub fn import(&mut self, env: &FileEnvironment<'i, 'p>) {
-        self.variables.import(&env.variables);
-        self.templates.import(&env.templates);
-        self.targets.import(&env.targets);
-    }
-
-    pub fn finalize(self) -> FileEnvironment<'i, 'p> {
-        FileEnvironment {
+impl<'i, 'p> MutableFileExports<'i, 'p> {
+    pub fn finalize(self) -> FileExports<'i, 'p> {
+        FileExports {
             variables: Arc::new(self.variables),
             templates: Arc::new(self.templates),
             targets: Arc::new(self.targets),
+            children: Arc::new(self.children),
         }
     }
 }
 
 #[derive(Default)]
-pub struct FileEnvironment<'i, 'p> {
-    pub variables: Arc<VariableScope<'i, 'p>>,
-    pub templates: Arc<TemplateScope<'i, 'p>>,
-    pub targets: Arc<TargetScope<'i, 'p>>,
+pub struct FileExports<'i, 'p> {
+    pub variables: Arc<VariableMap<'i, 'p>>,
+    pub templates: Arc<TemplateMap<'i, 'p>>,
+    pub targets: Arc<TargetMap<'i, 'p>>,
+    pub children: Arc<Vec<PathBuf>>,
 }
 
-impl FileEnvironment<'_, '_> {
+#[derive(Default)]
+pub struct Environment {
+    pub variables: VariableMap<'static, 'static>,
+    pub templates: TemplateMap<'static, 'static>,
+    pub files: Vec<Pin<Arc<AnalyzedFile>>>,
+}
+
+impl Environment {
     pub fn new() -> Self {
         Default::default()
     }
@@ -228,9 +108,10 @@ pub struct AnalyzedFile {
     pub workspace_root: PathBuf,
     pub ast: Pin<Box<Block<'static>>>,
     pub analyzed_root: AnalyzedBlock<'static, 'static>,
+    pub exports: FileExports<'static, 'static>,
     pub links: Vec<AnalyzedLink<'static>>,
     pub symbols: Vec<DocumentSymbol>,
-    pub node: Arc<CacheNode>,
+    pub key: Arc<CacheKey>,
 }
 
 impl AnalyzedFile {
@@ -240,29 +121,30 @@ impl AnalyzedFile {
         workspace_root: PathBuf,
         ast: Pin<Box<Block<'static>>>,
         analyzed_root: AnalyzedBlock<'static, 'static>,
+        exports: FileExports<'static, 'static>,
         links: Vec<AnalyzedLink<'static>>,
         symbols: Vec<DocumentSymbol>,
-        deps: Vec<Arc<CacheNode>>,
         request_time: Instant,
     ) -> Pin<Arc<Self>> {
-        let node = CacheNode::new(document.path.clone(), document.version, deps, request_time);
+        let key = CacheKey::new(document.path.clone(), document.version, request_time);
         Arc::pin(Self {
             document,
             workspace_root,
             ast,
             analyzed_root,
+            exports,
             links,
             symbols,
-            node,
+            key,
         })
     }
 
-    pub fn variables_at(&self, pos: usize) -> VariableScope<'_, '_> {
-        self.analyzed_root.variables_at(pos)
+    pub fn local_variables_at(&self, pos: usize) -> VariableMap<'_, '_> {
+        self.analyzed_root.local_variables_at(pos)
     }
 
-    pub fn templates_at(&self, pos: usize) -> TemplateScope<'_, '_> {
-        self.analyzed_root.templates_at(pos)
+    pub fn local_templates_at(&self, pos: usize) -> TemplateMap<'_, '_> {
+        self.analyzed_root.local_templates_at(pos)
     }
 }
 
@@ -282,8 +164,8 @@ impl<'i, 'p> AnalyzedBlock<'i, 'p> {
         })
     }
 
-    pub fn variables_at(&self, pos: usize) -> VariableScope<'i, 'p> {
-        let mut variables = VariableScope::new();
+    pub fn local_variables_at(&self, pos: usize) -> VariableMap<'i, 'p> {
+        let mut variables = VariableMap::new();
 
         // First pass: Collect all variables in the scope.
         let mut declare_args_stack: Vec<&AnalyzedDeclareArgs> = Vec::new();
@@ -298,9 +180,8 @@ impl<'i, 'p> AnalyzedBlock<'i, 'p> {
                 AnalyzedStatement::Assignment(assignment) => {
                     let assignment = assignment.as_variable_assignment(self.document);
                     variables
-                        .ensure(assignment.primary_variable.as_str(), || {
-                            Variable::new(!declare_args_stack.is_empty())
-                        })
+                        .entry(assignment.primary_variable.as_str())
+                        .or_insert_with(|| Variable::new(!declare_args_stack.is_empty()))
                         .assignments
                         .insert(
                             PathSpan {
@@ -313,9 +194,8 @@ impl<'i, 'p> AnalyzedBlock<'i, 'p> {
                 AnalyzedStatement::Foreach(foreach) => {
                     let assignment = foreach.as_variable_assignment(self.document);
                     variables
-                        .ensure(assignment.primary_variable.as_str(), || {
-                            Variable::new(!declare_args_stack.is_empty())
-                        })
+                        .entry(assignment.primary_variable.as_str())
+                        .or_insert_with(|| Variable::new(!declare_args_stack.is_empty()))
                         .assignments
                         .insert(
                             PathSpan {
@@ -328,9 +208,8 @@ impl<'i, 'p> AnalyzedBlock<'i, 'p> {
                 AnalyzedStatement::ForwardVariablesFrom(forward_variables_from) => {
                     for assignment in forward_variables_from.as_variable_assignment(self.document) {
                         variables
-                            .ensure(assignment.primary_variable.as_str(), || {
-                                Variable::new(!declare_args_stack.is_empty())
-                            })
+                            .entry(assignment.primary_variable.as_str())
+                            .or_insert_with(|| Variable::new(!declare_args_stack.is_empty()))
                             .assignments
                             .insert(
                                 PathSpan {
@@ -341,17 +220,11 @@ impl<'i, 'p> AnalyzedBlock<'i, 'p> {
                             );
                     }
                 }
-                AnalyzedStatement::Import(import) => {
-                    // TODO: Handle import() within declare_args.
-                    variables.import(&import.file.environment.variables);
-                }
-                AnalyzedStatement::SyntheticImport(import) => {
-                    variables.import(&import.file.environment.variables);
-                }
                 AnalyzedStatement::DeclareArgs(declare_args) => {
                     declare_args_stack.push(declare_args);
                 }
-                AnalyzedStatement::Conditions(_)
+                AnalyzedStatement::Import(_)
+                | AnalyzedStatement::Conditions(_)
                 | AnalyzedStatement::Target(_)
                 | AnalyzedStatement::Template(_)
                 | AnalyzedStatement::BuiltinCall(_) => {}
@@ -363,7 +236,7 @@ impl<'i, 'p> AnalyzedBlock<'i, 'p> {
         for statement in self.top_level_statements() {
             for scope in statement.subscopes() {
                 if scope.span.start() < pos && pos < scope.span.end() {
-                    variables.merge(scope.variables_at(pos));
+                    variables.extend(scope.local_variables_at(pos));
                 }
             }
         }
@@ -371,8 +244,8 @@ impl<'i, 'p> AnalyzedBlock<'i, 'p> {
         variables
     }
 
-    pub fn templates_at(&self, pos: usize) -> TemplateScope<'i, 'p> {
-        let mut templates = TemplateScope::new();
+    pub fn local_templates_at(&self, pos: usize) -> TemplateMap<'i, 'p> {
+        let mut templates = TemplateMap::new();
 
         // First pass: Collect all templates in the scope.
         for statement in self.top_level_statements() {
@@ -382,13 +255,8 @@ impl<'i, 'p> AnalyzedBlock<'i, 'p> {
                         templates.insert(template.name, template);
                     }
                 }
-                AnalyzedStatement::Import(import) => {
-                    templates.import(&import.file.environment.templates);
-                }
-                AnalyzedStatement::SyntheticImport(import) => {
-                    templates.import(&import.file.environment.templates);
-                }
-                AnalyzedStatement::Assignment(_)
+                AnalyzedStatement::Import(_)
+                | AnalyzedStatement::Assignment(_)
                 | AnalyzedStatement::Conditions(_)
                 | AnalyzedStatement::DeclareArgs(_)
                 | AnalyzedStatement::Foreach(_)
@@ -403,7 +271,7 @@ impl<'i, 'p> AnalyzedBlock<'i, 'p> {
         for statement in self.top_level_statements() {
             for scope in statement.subscopes() {
                 if scope.span.start() < pos && pos < scope.span.end() {
-                    templates.merge(scope.templates_at(pos));
+                    templates.extend(scope.local_templates_at(pos));
                 }
             }
         }
@@ -423,7 +291,6 @@ pub enum AnalyzedStatement<'i, 'p> {
     Target(Box<AnalyzedTarget<'i, 'p>>),
     Template(Box<AnalyzedTemplate<'i, 'p>>),
     BuiltinCall(Box<AnalyzedBuiltinCall<'i, 'p>>),
-    SyntheticImport(Box<SyntheticImport<'i>>),
 }
 
 impl<'i, 'p> AnalyzedStatement<'i, 'p> {
@@ -440,7 +307,6 @@ impl<'i, 'p> AnalyzedStatement<'i, 'p> {
             AnalyzedStatement::Target(target) => target.call.span,
             AnalyzedStatement::Template(template) => template.call.span,
             AnalyzedStatement::BuiltinCall(builtin_call) => builtin_call.call.span,
-            AnalyzedStatement::SyntheticImport(synthetic_import) => synthetic_import.span,
         }
     }
 
@@ -454,8 +320,7 @@ impl<'i, 'p> AnalyzedStatement<'i, 'p> {
             | AnalyzedStatement::DeclareArgs(_)
             | AnalyzedStatement::Foreach(_)
             | AnalyzedStatement::ForwardVariablesFrom(_)
-            | AnalyzedStatement::Import(_)
-            | AnalyzedStatement::SyntheticImport(_) => None,
+            | AnalyzedStatement::Import(_) => None,
         }
     }
 
@@ -488,9 +353,9 @@ impl<'i, 'p> AnalyzedStatement<'i, 'p> {
             AnalyzedStatement::BuiltinCall(builtin_call) => {
                 Either::Left(builtin_call.expr_scopes.as_slice())
             }
-            AnalyzedStatement::DeclareArgs(_)
-            | AnalyzedStatement::Import(_)
-            | AnalyzedStatement::SyntheticImport(_) => Either::Left([].as_slice()),
+            AnalyzedStatement::DeclareArgs(_) | AnalyzedStatement::Import(_) => {
+                Either::Left([].as_slice())
+            }
         }
         .into_iter()
     }
@@ -541,7 +406,7 @@ pub struct AnalyzedForwardVariablesFrom<'i, 'p> {
 #[derive(Clone)]
 pub struct AnalyzedImport<'i, 'p> {
     pub call: &'p Call<'i>,
-    pub file: Pin<Arc<ShallowAnalyzedFile>>,
+    pub path: PathBuf,
 }
 
 #[derive(Clone)]
@@ -566,12 +431,6 @@ pub struct AnalyzedBuiltinCall<'i, 'p> {
     pub call: &'p Call<'i>,
     pub expr_scopes: Vec<AnalyzedBlock<'i, 'p>>,
     pub body_block: Option<AnalyzedBlock<'i, 'p>>,
-}
-
-#[derive(Clone)]
-pub struct SyntheticImport<'i> {
-    pub file: Pin<Arc<ShallowAnalyzedFile>>,
-    pub span: Span<'i>,
 }
 
 #[derive(Clone)]
@@ -692,10 +551,6 @@ impl<'i, 'p> AnalyzedForwardVariablesFrom<'i, 'p> {
             .collect()
     }
 }
-
-pub type TargetScope<'i, 'p> = Environment<'i, Target<'i, 'p>>;
-pub type TemplateScope<'i, 'p> = Environment<'i, Template<'i, 'p>>;
-pub type VariableScope<'i, 'p> = Environment<'i, Variable<'i, 'p>>;
 
 #[derive(Clone, Eq, PartialEq)]
 pub enum AnalyzedLink<'i> {

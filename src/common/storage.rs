@@ -26,7 +26,6 @@ use crate::common::utils::LineIndex;
 pub enum DocumentVersion {
     OnDisk { modified: SystemTime },
     InMemory { revision: i32 },
-    AnalysisError,
     IoError,
 }
 
@@ -50,10 +49,6 @@ impl Document {
             version,
             line_index,
         }
-    }
-
-    pub fn analysis_error(path: &Path) -> Self {
-        Self::new(path, String::new(), DocumentVersion::AnalysisError)
     }
 }
 

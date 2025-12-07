@@ -22,17 +22,14 @@ use std::{
 
 pub use data::{
     AnalyzedAssignment, AnalyzedBlock, AnalyzedFile, AnalyzedImport, AnalyzedLink,
-    AnalyzedStatement, AnalyzedTarget, AnalyzedTemplate, ShallowAnalyzedFile, Target, Template,
-    Variable, VariableScope,
+    AnalyzedStatement, AnalyzedTarget, AnalyzedTemplate, Environment, Target, Template, Variable,
+    VariableMap,
 };
 
 pub use toplevel::TopLevelStatementsExt;
 
 use crate::{
-    analyzer::{
-        data::WorkspaceContext, dotgn::evaluate_dot_gn, full::FullAnalyzer,
-        shallow::ShallowAnalysisSnapshot,
-    },
+    analyzer::{data::WorkspaceContext, dotgn::evaluate_dot_gn, full::FullAnalyzer},
     common::{
         error::{Error, Result},
         storage::DocumentStorage,
@@ -45,7 +42,6 @@ mod data;
 mod dotgn;
 mod full;
 mod links;
-mod shallow;
 mod symbols;
 mod tests;
 mod toplevel;
@@ -53,59 +49,52 @@ mod utils;
 
 pub struct Analyzer {
     storage: Arc<Mutex<DocumentStorage>>,
+    finder: WorkspaceFinder,
     workspaces: RwLock<BTreeMap<PathBuf, Arc<Mutex<WorkspaceAnalyzer>>>>,
 }
 
 impl Analyzer {
-    pub fn new(storage: &Arc<Mutex<DocumentStorage>>) -> Self {
+    pub fn new(storage: &Arc<Mutex<DocumentStorage>>, finder: WorkspaceFinder) -> Self {
         Self {
             storage: storage.clone(),
+            finder,
             workspaces: Default::default(),
         }
     }
 
-    pub fn analyze(
+    pub fn analyze_file(
         &self,
         path: &Path,
-        finder: &WorkspaceFinder,
         request_time: Instant,
     ) -> Result<Pin<Arc<AnalyzedFile>>> {
         if !path.is_absolute() {
             return Err(Error::General("Path must be absolute".to_string()));
         }
         Ok(self
-            .workspace_for(path, finder)?
+            .workspace_for(path)?
             .lock()
             .unwrap()
-            .analyze(path, request_time))
+            .analyze_file(path, request_time))
     }
 
-    pub fn analyze_shallow(
+    pub fn analyze_environment(
         &self,
-        path: &Path,
-        finder: &WorkspaceFinder,
+        file: &Pin<Arc<AnalyzedFile>>,
+        pos: usize,
         request_time: Instant,
-    ) -> Result<Pin<Arc<ShallowAnalyzedFile>>> {
-        if !path.is_absolute() {
-            return Err(Error::General("Path must be absolute".to_string()));
-        }
+    ) -> Result<Environment> {
         Ok(self
-            .workspace_for(path, finder)?
+            .workspace_for(&file.document.path)?
             .lock()
             .unwrap()
-            .analyze_shallow(path, request_time))
+            .analyze_environment(file, pos, request_time))
     }
 
-    pub fn cached_files(&self, workspace_root: &Path) -> Vec<Pin<Arc<ShallowAnalyzedFile>>> {
+    pub fn cached_files(&self, workspace_root: &Path) -> Vec<Pin<Arc<AnalyzedFile>>> {
         let Some(workspace) = self.workspaces.read().unwrap().get(workspace_root).cloned() else {
             return Vec::new();
         };
-        let cached_files = workspace
-            .lock()
-            .unwrap()
-            .analyzer
-            .get_shallow()
-            .cached_files();
+        let cached_files = workspace.lock().unwrap().analyzer.cached_files();
         cached_files
     }
 
@@ -113,12 +102,13 @@ impl Analyzer {
         self.workspaces.read().unwrap().keys().cloned().collect()
     }
 
-    fn workspace_for(
-        &self,
-        path: &Path,
-        finder: &WorkspaceFinder,
-    ) -> Result<Arc<Mutex<WorkspaceAnalyzer>>> {
-        let workspace_root = finder
+    pub fn finder(&self) -> &WorkspaceFinder {
+        &self.finder
+    }
+
+    fn workspace_for(&self, path: &Path) -> Result<Arc<Mutex<WorkspaceAnalyzer>>> {
+        let workspace_root = self
+            .finder
             .find_for(path)
             .ok_or(Error::General("Workspace not found".to_string()))?;
         let dot_gn_path = workspace_root.join(".gn");
@@ -171,17 +161,16 @@ impl WorkspaceAnalyzer {
         }
     }
 
-    pub fn analyze(&mut self, path: &Path, request_time: Instant) -> Pin<Arc<AnalyzedFile>> {
-        self.analyzer.analyze(path, request_time)
+    pub fn analyze_file(&mut self, path: &Path, request_time: Instant) -> Pin<Arc<AnalyzedFile>> {
+        self.analyzer.analyze_file(path, request_time)
     }
 
-    pub fn analyze_shallow(
+    pub fn analyze_environment(
         &mut self,
-        path: &Path,
+        file: &Pin<Arc<AnalyzedFile>>,
+        pos: usize,
         request_time: Instant,
-    ) -> Pin<Arc<ShallowAnalyzedFile>> {
-        self.analyzer
-            .get_shallow()
-            .analyze(path, request_time, &mut ShallowAnalysisSnapshot::new())
+    ) -> Environment {
+        self.analyzer.analyze_environment(file, pos, request_time)
     }
 }

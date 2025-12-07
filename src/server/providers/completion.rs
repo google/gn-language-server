@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use std::path::Path;
+use std::{path::Path, pin::Pin, sync::Arc};
 
 use itertools::Itertools;
 use tower_lsp::lsp_types::{
@@ -87,19 +87,25 @@ fn is_after_dot(data: &str, offset: usize) -> bool {
     false
 }
 
-fn identifier_completions(current_file: &AnalyzedFile, offset: usize) -> Vec<CompletionItem> {
+fn build_identifier_completions(
+    context: &RequestContext,
+    current_file: &Pin<Arc<AnalyzedFile>>,
+    offset: usize,
+) -> Result<Vec<CompletionItem>> {
     // Handle identifier completions.
     // If the cursor is after a dot, we can't make suggestions.
     if is_after_dot(&current_file.document.data, offset) {
-        return Vec::new();
+        return Ok(Vec::new());
     }
 
-    let variables = current_file.variables_at(offset);
-    let templates = current_file.templates_at(offset);
+    let environment =
+        context
+            .analyzer
+            .analyze_environment(current_file, offset, context.request_time)?;
 
     // Enumerate variables at the current scope.
-    let variable_items = variables.all_items().into_iter().map(|(name, variable)| {
-        let paragraphs = format_variable_help(&variable, &current_file.workspace_root);
+    let variable_items = environment.variables.iter().map(|(name, variable)| {
+        let paragraphs = format_variable_help(variable, &current_file.workspace_root);
         CompletionItem {
             label: name.to_string(),
             kind: Some(CompletionItemKind::VARIABLE),
@@ -112,8 +118,8 @@ fn identifier_completions(current_file: &AnalyzedFile, offset: usize) -> Vec<Com
     });
 
     // Enumerate templates defined at the current position.
-    let template_items = templates.all_items().into_values().map(|template| {
-        let paragraphs = format_template_help(&template, &current_file.workspace_root);
+    let template_items = environment.templates.values().map(|template| {
+        let paragraphs = format_template_help(template, &current_file.workspace_root);
         CompletionItem {
             label: template.name.to_string(),
             kind: Some(CompletionItemKind::FUNCTION),
@@ -139,6 +145,7 @@ fn identifier_completions(current_file: &AnalyzedFile, offset: usize) -> Vec<Com
             })),
             ..Default::default()
         });
+
     let builtin_variable_items = BUILTINS
         .predefined_variables
         .iter()
@@ -160,12 +167,12 @@ fn identifier_completions(current_file: &AnalyzedFile, offset: usize) -> Vec<Com
         ..Default::default()
     });
 
-    variable_items
+    Ok(variable_items
         .chain(template_items)
         .chain(builtin_function_items)
         .chain(builtin_variable_items)
         .chain(keyword_items)
-        .collect()
+        .collect())
 }
 
 pub async fn completion(
@@ -173,9 +180,7 @@ pub async fn completion(
     params: CompletionParams,
 ) -> Result<Option<CompletionResponse>> {
     let path = get_text_document_path(&params.text_document_position.text_document)?;
-    let current_file = context
-        .analyzer
-        .analyze(&path, &context.finder, context.request_time)?;
+    let current_file = context.analyzer.analyze_file(&path, context.request_time)?;
 
     let offset = current_file
         .document
@@ -199,6 +204,6 @@ pub async fn completion(
     }
 
     // Handle identifier completions.
-    let items = identifier_completions(&current_file, offset);
+    let items = build_identifier_completions(context, &current_file, offset)?;
     Ok(Some(CompletionResponse::Array(items)))
 }

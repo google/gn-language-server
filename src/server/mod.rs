@@ -47,22 +47,16 @@ mod providers;
 
 struct ServerContext {
     pub storage: Arc<Mutex<DocumentStorage>>,
-    pub analyzer: Arc<Analyzer>,
-    pub finder: OnceLock<WorkspaceFinder>,
+    pub analyzer: OnceLock<Arc<Analyzer>>,
     pub indexed: Arc<Mutex<BTreeMap<PathBuf, AsyncSignal>>>,
     pub client: TestableClient,
 }
 
 impl ServerContext {
-    pub fn new(
-        storage: Arc<Mutex<DocumentStorage>>,
-        analyzer: Arc<Analyzer>,
-        client: TestableClient,
-    ) -> Self {
+    pub fn new(storage: Arc<Mutex<DocumentStorage>>, client: TestableClient) -> Self {
         Self {
             storage,
-            analyzer,
-            finder: OnceLock::new(),
+            analyzer: OnceLock::new(),
             indexed: Default::default(),
             client,
         }
@@ -71,13 +65,14 @@ impl ServerContext {
     #[cfg(test)]
     pub fn new_for_testing() -> Self {
         let storage = Arc::new(Mutex::new(DocumentStorage::new()));
-        let analyzer = Arc::new(Analyzer::new(&storage));
-        let finder = OnceLock::new();
-        let _ = finder.set(WorkspaceFinder::new(None));
+        let analyzer = OnceLock::new();
+        let _ = analyzer.set(Arc::new(Analyzer::new(
+            &storage,
+            WorkspaceFinder::new(None),
+        )));
         Self {
             storage,
             analyzer,
-            finder,
             indexed: Default::default(),
             client: TestableClient::new_for_testing(),
         }
@@ -86,8 +81,7 @@ impl ServerContext {
     pub fn request(&self) -> RequestContext {
         RequestContext {
             storage: self.storage.clone(),
-            analyzer: self.analyzer.clone(),
-            finder: self.finder.get().unwrap().clone(),
+            analyzer: self.analyzer.get().unwrap().clone(),
             indexed: self.indexed.clone(),
             client: self.client.clone(),
             request_time: Instant::now(),
@@ -99,7 +93,6 @@ impl ServerContext {
 pub struct RequestContext {
     pub storage: Arc<Mutex<DocumentStorage>>,
     pub analyzer: Arc<Analyzer>,
-    pub finder: WorkspaceFinder,
     pub indexed: Arc<Mutex<BTreeMap<PathBuf, AsyncSignal>>>,
     pub client: TestableClient,
     pub request_time: Instant,
@@ -117,18 +110,14 @@ struct Backend {
 }
 
 impl Backend {
-    pub fn new(
-        storage: Arc<Mutex<DocumentStorage>>,
-        analyzer: Arc<Analyzer>,
-        client: TestableClient,
-    ) -> Self {
+    pub fn new(storage: Arc<Mutex<DocumentStorage>>, client: TestableClient) -> Self {
         Self {
-            context: ServerContext::new(storage, analyzer, client),
+            context: ServerContext::new(storage, client),
         }
     }
 
     async fn maybe_index_workspace_for(&self, context: &RequestContext, path: &Path) {
-        let Some(workspace_root) = context.finder.find_for(path) else {
+        let Some(workspace_root) = context.analyzer.finder().find_for(path) else {
             return;
         };
         let workspace_root = workspace_root.to_path_buf();
@@ -160,7 +149,8 @@ impl LanguageServer for Backend {
                 .and_then(|root_uri| root_uri.to_file_path().ok())
                 .as_deref(),
         );
-        self.context.finder.set(finder).ok();
+        let analyzer = Arc::new(Analyzer::new(&self.context.storage, finder));
+        self.context.analyzer.set(analyzer).ok();
 
         Ok(InitializeResult {
             capabilities: ServerCapabilities {
@@ -279,9 +269,8 @@ impl LanguageServer for Backend {
 
 pub async fn run() {
     let storage = Arc::new(Mutex::new(DocumentStorage::new()));
-    let analyzer = Arc::new(Analyzer::new(&storage));
     let (service, socket) =
-        LspService::new(move |client| Backend::new(storage, analyzer, TestableClient::new(client)));
+        LspService::new(move |client| Backend::new(storage, TestableClient::new(client)));
 
     let stdin = tokio::io::stdin();
     let stdout = tokio::io::stdout();

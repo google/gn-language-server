@@ -27,8 +27,10 @@ use crate::{
 
 pub async fn run_bench(workspace_root: &Path) {
     let storage = Arc::new(Mutex::new(DocumentStorage::new()));
-    let analyzer = Arc::new(Analyzer::new(&storage));
-    let finder = WorkspaceFinder::new(Some(workspace_root));
+    let analyzer = Arc::new(Analyzer::new(
+        &storage,
+        WorkspaceFinder::new(Some(workspace_root)),
+    ));
 
     let start_time = Instant::now();
     let mut count = 0;
@@ -36,9 +38,8 @@ pub async fn run_bench(workspace_root: &Path) {
     let mut tasks = Vec::new();
     for path in find_gn_files(workspace_root) {
         let analyzer = analyzer.clone();
-        let finder = finder.clone();
         tasks.push(tokio::spawn(async move {
-            analyzer.analyze_shallow(&path, &finder, start_time).ok();
+            analyzer.analyze_file(&path, start_time).ok();
             eprint!(".");
         }));
         count += 1;
