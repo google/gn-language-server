@@ -16,10 +16,13 @@
 
 import * as path from 'path';
 import * as vscode from 'vscode';
+import * as p2c from 'vscode-languageclient/lib/common/protocolConverter';
 import {
   LanguageClient,
   LanguageClientOptions,
+  Location,
   MessageSignature,
+  Position,
   ResponseError,
   ServerOptions,
   TransportKind,
@@ -126,6 +129,29 @@ async function openBuildFile(): Promise<void> {
   );
 }
 
+async function showTargetReferences(
+  converter: p2c.Converter,
+  position: Position,
+  locations: Location[]
+): Promise<void> {
+  const documentUri = vscode.window.activeTextEditor?.document?.uri;
+  if (!documentUri) {
+    void vscode.window.showErrorMessage('No open editor.');
+    return;
+  }
+
+  await vscode.commands.executeCommand(
+    'editor.action.showReferences',
+    documentUri,
+    converter.asPosition(position),
+    locations.map(converter.asLocation)
+  );
+}
+
+async function copyTargetLabel(label: string): Promise<void> {
+  await vscode.env.clipboard.writeText(label);
+}
+
 class GnLanguageClient extends LanguageClient {
   constructor(context: vscode.ExtensionContext, output: vscode.OutputChannel) {
     const clientOptions: LanguageClientOptions = {
@@ -189,6 +215,15 @@ async function startLanguageServer(
   const client = new GnLanguageClient(context, output);
   context.subscriptions.push(client);
   await client.start();
+
+  context.subscriptions.push(
+    vscode.commands.registerCommand(
+      'gn.showTargetReferences',
+      (position: Position, locations: Location[]) =>
+        showTargetReferences(client.protocol2CodeConverter, position, locations)
+    ),
+    vscode.commands.registerCommand('gn.copyTargetLabel', copyTargetLabel),
+  );
 }
 
 export function activate(context: vscode.ExtensionContext): void {

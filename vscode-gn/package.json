@@ -78,6 +78,11 @@
           "default": true,
           "description": "Reports syntax errors."
         },
+        "gn.experimental.targetLens": {
+          "type": "boolean",
+          "default": false,
+          "description": "Enables code lens for build targets (experimental)."
+        },
         "gn.experimental.undefinedVariableAnalysis": {
           "type": "boolean",
           "default": false,

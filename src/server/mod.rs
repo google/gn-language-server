@@ -22,14 +22,14 @@ use std::{
 use tokio::spawn;
 use tower_lsp::{
     lsp_types::{
-        CompletionOptions, CompletionParams, CompletionResponse, DidChangeConfigurationParams,
-        DidChangeTextDocumentParams, DidCloseTextDocumentParams, DidOpenTextDocumentParams,
-        DocumentFormattingParams, DocumentLink, DocumentLinkOptions, DocumentLinkParams,
-        DocumentSymbolParams, DocumentSymbolResponse, GotoDefinitionParams, GotoDefinitionResponse,
-        Hover, HoverParams, HoverProviderCapability, InitializeParams, InitializeResult,
-        InitializedParams, Location, MessageType, OneOf, ReferenceParams, ServerCapabilities,
-        SymbolInformation, TextDocumentSyncCapability, TextDocumentSyncKind, TextEdit, Url,
-        WorkspaceSymbolParams,
+        CodeLens, CodeLensOptions, CodeLensParams, CompletionOptions, CompletionParams,
+        CompletionResponse, DidChangeConfigurationParams, DidChangeTextDocumentParams,
+        DidCloseTextDocumentParams, DidOpenTextDocumentParams, DocumentFormattingParams,
+        DocumentLink, DocumentLinkOptions, DocumentLinkParams, DocumentSymbolParams,
+        DocumentSymbolResponse, GotoDefinitionParams, GotoDefinitionResponse, Hover, HoverParams,
+        HoverProviderCapability, InitializeParams, InitializeResult, InitializedParams, Location,
+        MessageType, OneOf, ReferenceParams, ServerCapabilities, SymbolInformation,
+        TextDocumentSyncCapability, TextDocumentSyncKind, TextEdit, Url, WorkspaceSymbolParams,
     },
     LanguageServer, LspService, Server,
 };
@@ -168,6 +168,9 @@ impl LanguageServer for Backend {
                 document_formatting_provider: Some(OneOf::Left(true)),
                 references_provider: Some(OneOf::Left(true)),
                 workspace_symbol_provider: Some(OneOf::Left(true)),
+                code_lens_provider: Some(CodeLensOptions {
+                    resolve_provider: Some(true),
+                }),
                 ..Default::default()
             },
             ..Default::default()
@@ -264,6 +267,14 @@ impl LanguageServer for Backend {
         params: WorkspaceSymbolParams,
     ) -> RpcResult<Option<Vec<SymbolInformation>>> {
         Ok(providers::workspace_symbol::workspace_symbol(&self.context.request(), params).await?)
+    }
+
+    async fn code_lens(&self, params: CodeLensParams) -> RpcResult<Option<Vec<CodeLens>>> {
+        Ok(providers::code_lens::code_lens(&self.context.request(), params).await?)
+    }
+
+    async fn code_lens_resolve(&self, partial_lens: CodeLens) -> RpcResult<CodeLens> {
+        Ok(providers::code_lens::code_lens_resolve(&self.context.request(), partial_lens).await?)
     }
 }
 

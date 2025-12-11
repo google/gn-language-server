@@ -30,7 +30,7 @@ fn get_overlapping_targets<'i>(root: &AnalyzedBlock<'i, '_>, prefix: &str) -> Ve
         .collect()
 }
 
-async fn target_references(
+pub async fn target_references(
     context: &RequestContext,
     current_file: &AnalyzedFile,
     target_name: &str,
