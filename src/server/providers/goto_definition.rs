@@ -46,8 +46,9 @@ pub async fn goto_definition(
 
     // Check links first.
     if let Some(link) = current_file
-        .links
-        .iter()
+        .links_map
+        .values()
+        .flatten()
         .find(|link| link.span().start() <= pos && pos <= link.span().end())
     {
         let (path, position) = match link {

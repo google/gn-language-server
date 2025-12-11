@@ -126,6 +126,10 @@ impl AsyncSignal {
         Default::default()
     }
 
+    pub fn done(&self) -> bool {
+        self.done.initialized()
+    }
+
     pub async fn wait(&self) {
         self.done.wait().await;
     }

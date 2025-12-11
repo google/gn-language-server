@@ -16,7 +16,13 @@ use std::{path::Path, time::Instant};
 
 use tower_lsp::lsp_types::MessageType;
 
-use crate::{common::utils::find_gn_files, server::RequestContext};
+use crate::{
+    common::{
+        error::{Error, Result},
+        utils::find_gn_files,
+    },
+    server::RequestContext,
+};
 
 pub async fn index(context: &RequestContext, workspace_root: &Path) {
     context
@@ -51,4 +57,25 @@ pub async fn index(context: &RequestContext, workspace_root: &Path) {
             ),
         )
         .await;
+}
+
+pub async fn wait_indexing(context: &RequestContext, workspace_root: &Path) -> Result<()> {
+    let Some(indexed) = context.indexed.lock().unwrap().get(workspace_root).cloned() else {
+        return Err(Error::General(format!(
+            "Indexing for {} not started",
+            workspace_root.display()
+        )));
+    };
+    indexed.wait().await;
+    Ok(())
+}
+
+pub fn check_indexing(context: &RequestContext, workspace_root: &Path) -> Result<bool> {
+    let Some(indexed) = context.indexed.lock().unwrap().get(workspace_root).cloned() else {
+        return Err(Error::General(format!(
+            "Indexing for {} not started",
+            workspace_root.display()
+        )));
+    };
+    Ok(indexed.done())
 }

@@ -12,7 +12,10 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use std::path::{Path, PathBuf};
+use std::{
+    collections::HashMap,
+    path::{Path, PathBuf},
+};
 
 use crate::{
     analyzer::{data::AnalyzedLink, WorkspaceContext},
@@ -51,26 +54,34 @@ pub fn collect_links<'i>(
     ast: &Block<'i>,
     path: &Path,
     workspace: &WorkspaceContext,
-) -> Vec<AnalyzedLink<'i>> {
-    ast.strings()
-        .filter_map(|string| {
-            let content = parse_simple_literal(string.raw_value)?;
-            if !content.contains(":") && content.contains(".") {
-                let path = workspace.resolve_path(content, path.parent().unwrap());
-                if let Ok(true) = path.try_exists() {
-                    return Some(AnalyzedLink::File {
-                        path: path.to_path_buf(),
-                        span: string.span,
-                    });
-                }
-            } else if let Some((build_gn_path, name)) = resolve_target(content, path, workspace) {
-                return Some(AnalyzedLink::Target {
-                    path: build_gn_path,
-                    name,
+) -> HashMap<PathBuf, Vec<AnalyzedLink<'i>>> {
+    let links = ast.strings().filter_map(|string| {
+        let content = parse_simple_literal(string.raw_value)?;
+        if !content.contains(":") && content.contains(".") {
+            let path = workspace.resolve_path(content, path.parent().unwrap());
+            if let Ok(true) = path.try_exists() {
+                return Some(AnalyzedLink::File {
+                    path: path.to_path_buf(),
                     span: string.span,
                 });
             }
-            None
-        })
-        .collect()
+        } else if let Some((build_gn_path, name)) = resolve_target(content, path, workspace) {
+            return Some(AnalyzedLink::Target {
+                path: build_gn_path,
+                name,
+                span: string.span,
+            });
+        }
+        None
+    });
+
+    let mut links_map: HashMap<PathBuf, Vec<AnalyzedLink>> = HashMap::new();
+    for link in links {
+        links_map
+            .entry(link.path().to_path_buf())
+            .or_default()
+            .push(link);
+    }
+
+    links_map
 }

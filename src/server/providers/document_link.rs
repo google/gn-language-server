@@ -39,8 +39,9 @@ pub async fn document_link(
     let current_file = context.analyzer.analyze_file(&path, context.request_time)?;
 
     let links = current_file
-        .links
-        .iter()
+        .links_map
+        .values()
+        .flatten()
         .map(|link| match link {
             AnalyzedLink::File { path, span } => DocumentLink {
                 target: Some(Url::from_file_path(path).unwrap()),

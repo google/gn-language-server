@@ -109,7 +109,7 @@ pub struct AnalyzedFile {
     pub ast: Pin<Box<Block<'static>>>,
     pub analyzed_root: AnalyzedBlock<'static, 'static>,
     pub exports: FileExports<'static, 'static>,
-    pub links: Vec<AnalyzedLink<'static>>,
+    pub links_map: HashMap<PathBuf, Vec<AnalyzedLink<'static>>>,
     pub symbols: Vec<DocumentSymbol>,
     pub key: Arc<CacheKey>,
 }
@@ -122,7 +122,7 @@ impl AnalyzedFile {
         ast: Pin<Box<Block<'static>>>,
         analyzed_root: AnalyzedBlock<'static, 'static>,
         exports: FileExports<'static, 'static>,
-        links: Vec<AnalyzedLink<'static>>,
+        links_map: HashMap<PathBuf, Vec<AnalyzedLink<'static>>>,
         symbols: Vec<DocumentSymbol>,
         request_time: Instant,
     ) -> Pin<Arc<Self>> {
@@ -133,7 +133,7 @@ impl AnalyzedFile {
             ast,
             analyzed_root,
             exports,
-            links,
+            links_map,
             symbols,
             key,
         })
@@ -565,6 +565,13 @@ pub enum AnalyzedLink<'i> {
 }
 
 impl<'i> AnalyzedLink<'i> {
+    pub fn path(&self) -> &Path {
+        match self {
+            AnalyzedLink::File { path, .. } => path,
+            AnalyzedLink::Target { path, .. } => path,
+        }
+    }
+
     pub fn span(&self) -> Span<'i> {
         match self {
             AnalyzedLink::File { span, .. } => *span,

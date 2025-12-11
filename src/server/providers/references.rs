@@ -16,8 +16,9 @@ use tower_lsp::lsp_types::{Location, ReferenceParams, Url};
 
 use crate::{
     analyzer::{AnalyzedBlock, AnalyzedFile, AnalyzedLink},
-    common::error::{Error, Result},
+    common::error::Result,
     server::{
+        indexing::wait_indexing,
         providers::utils::{get_text_document_path, lookup_target_name_string_at},
         RequestContext,
     },
@@ -30,34 +31,24 @@ fn get_overlapping_targets<'i>(root: &AnalyzedBlock<'i, '_>, prefix: &str) -> Ve
         .collect()
 }
 
-pub async fn target_references(
+pub fn target_references(
     context: &RequestContext,
     current_file: &AnalyzedFile,
     target_name: &str,
-) -> Result<Option<Vec<Location>>> {
+) -> Result<Vec<Location>> {
     let bad_prefixes = get_overlapping_targets(&current_file.analyzed_root, target_name);
 
-    // Wait for the workspace indexing to finish.
-    let workspace_root = &current_file.workspace_root;
-    let Some(indexed) = context.indexed.lock().unwrap().get(workspace_root).cloned() else {
-        return Err(Error::General(format!(
-            "Indexing for {} not started",
-            workspace_root.display()
-        )));
-    };
-    indexed.wait().await;
-
-    let cached_files = context.analyzer.cached_files(workspace_root);
+    let cached_files = context.analyzer.cached_files(&current_file.workspace_root);
 
     let mut references: Vec<Location> = Vec::new();
     for file in cached_files {
-        for link in &file.links {
-            let AnalyzedLink::Target { path, name, span } = link else {
+        let Some(links) = file.links_map.get(&current_file.document.path) else {
+            continue;
+        };
+        for link in links {
+            let AnalyzedLink::Target { name, span, .. } = link else {
                 continue;
             };
-            if path != &current_file.document.path {
-                continue;
-            }
             if bad_prefixes
                 .iter()
                 .any(|bad_prefix| name.starts_with(bad_prefix))
@@ -74,7 +65,7 @@ pub async fn target_references(
         }
     }
 
-    Ok(Some(references))
+    Ok(references)
 }
 
 pub async fn references(
@@ -98,7 +89,13 @@ pub async fn references(
     };
 
     if let Some(target) = lookup_target_name_string_at(&current_file, pos) {
-        return target_references(context, &current_file, target.name).await;
+        // Wait for the workspace indexing to finish.
+        wait_indexing(context, &current_file.workspace_root).await?;
+        return Ok(Some(target_references(
+            context,
+            &current_file,
+            target.name,
+        )?));
     };
 
     Ok(None)

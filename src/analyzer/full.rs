@@ -13,7 +13,7 @@
 // limitations under the License.
 
 use std::{
-    collections::{BTreeMap, HashSet},
+    collections::{BTreeMap, HashMap, HashSet},
     path::{Path, PathBuf},
     pin::Pin,
     sync::{Arc, Mutex},
@@ -153,11 +153,16 @@ impl FullAnalyzer {
         let analyzed_root = self.analyze_block(&ast, &document);
         let exports = self.analyze_exports(&ast, &document);
 
-        let links = collect_links(&ast, path, &self.context);
+        let links_map = collect_links(&ast, path, &self.context);
         let symbols = collect_symbols(ast.as_node(), &document.line_index);
 
         // SAFETY: links' contents are backed by pinned document.
-        let links = unsafe { std::mem::transmute::<Vec<AnalyzedLink>, Vec<AnalyzedLink>>(links) };
+        let links_map = unsafe {
+            std::mem::transmute::<
+                HashMap<PathBuf, Vec<AnalyzedLink>>,
+                HashMap<PathBuf, Vec<AnalyzedLink>>,
+            >(links_map)
+        };
         // SAFETY: exports' contents are backed by pinned document and pinned ast.
         let exports = unsafe { std::mem::transmute::<FileExports, FileExports>(exports) };
         // SAFETY: analyzed_root's contents are backed by pinned document and pinned ast.
@@ -172,7 +177,7 @@ impl FullAnalyzer {
             ast,
             analyzed_root,
             exports,
-            links,
+            links_map,
             symbols,
             request_time,
         )
