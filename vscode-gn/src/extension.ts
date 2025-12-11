@@ -150,6 +150,7 @@ async function showTargetReferences(
 
 async function copyTargetLabel(label: string): Promise<void> {
   await vscode.env.clipboard.writeText(label);
+  void vscode.window.showInformationMessage(`Copied: ${label}`);
 }
 
 class GnLanguageClient extends LanguageClient {
