@@ -34,7 +34,9 @@ pub async fn goto_definition(
     params: GotoDefinitionParams,
 ) -> Result<Option<GotoDefinitionResponse>> {
     let path = get_text_document_path(&params.text_document_position_params.text_document)?;
-    let current_file = context.analyzer.analyze_file(&path, context.request_time)?;
+    let current_file = context
+        .analyzers
+        .analyze_file(&path, context.request_time)?;
 
     let Some(pos) = current_file
         .document
@@ -54,7 +56,7 @@ pub async fn goto_definition(
         let (path, position) = match link {
             AnalyzedLink::File { path, .. } => (path, Position::default()),
             AnalyzedLink::Target { path, name, .. } => {
-                let target_file = context.analyzer.analyze_file(path, context.request_time)?;
+                let target_file = context.analyzers.analyze_file(path, context.request_time)?;
                 (
                     path,
                     find_target(&target_file, name)
@@ -95,7 +97,7 @@ pub async fn goto_definition(
 
     let environment =
         context
-            .analyzer
+            .analyzers
             .analyze_environment(&current_file, pos, context.request_time)?;
 
     let mut links: Vec<LocationLink> = Vec::new();

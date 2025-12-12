@@ -38,7 +38,7 @@ pub async fn index(context: &RequestContext, workspace_root: &Path) {
 
     for path in find_gn_files(workspace_root) {
         context
-            .analyzer
+            .analyzers
             .analyze_file(&path, context.request_time)
             .ok();
         count += 1;

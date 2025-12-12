@@ -43,20 +43,24 @@ use crate::{
     parser::{parse, Block, Call, Comments, Condition, Expr, LValue, Node, PrimaryExpr, Statement},
 };
 
-pub struct FullAnalyzer {
+pub struct Analyzer {
     context: WorkspaceContext,
     storage: Arc<Mutex<DocumentStorage>>,
     #[allow(clippy::type_complexity)]
     cache: BTreeMap<PathBuf, Pin<Arc<AnalyzedFile>>>,
 }
 
-impl FullAnalyzer {
+impl Analyzer {
     pub fn new(context: &WorkspaceContext, storage: &Arc<Mutex<DocumentStorage>>) -> Self {
         Self {
             context: context.clone(),
             storage: storage.clone(),
             cache: Default::default(),
         }
+    }
+
+    pub fn context(&self) -> &WorkspaceContext {
+        &self.context
     }
 
     pub fn cached_files(&self) -> Vec<Pin<Arc<AnalyzedFile>>> {

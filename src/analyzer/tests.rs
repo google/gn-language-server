@@ -20,7 +20,7 @@ use std::{
 };
 
 use crate::{
-    analyzer::Analyzer,
+    analyzer::AnalyzerSet,
     common::{storage::DocumentStorage, testutils::testdata, workspace::WorkspaceFinder},
     parser::Statement,
 };
@@ -28,9 +28,9 @@ use crate::{
 #[test]
 fn test_analyze_smoke() {
     let storage = Arc::new(Mutex::new(DocumentStorage::new()));
-    let analyzer = Analyzer::new(&storage, WorkspaceFinder::new(None));
+    let analyzers = AnalyzerSet::new(&storage, WorkspaceFinder::new(None));
 
-    let file = analyzer
+    let file = analyzers
         .analyze_file(&testdata("workspaces/smoke/BUILD.gn"), Instant::now())
         .unwrap();
 
@@ -42,7 +42,7 @@ fn test_analyze_smoke() {
         .all(|s| !matches!(s, Statement::Error(_))));
 
     // Inspect the environment.
-    let environment = analyzer
+    let environment = analyzers
         .analyze_environment(&file, 0, Instant::now())
         .unwrap();
     assert!(environment.variables.contains_key("enable_opt"));
@@ -54,12 +54,12 @@ fn test_analyze_smoke() {
 fn test_analyze_cycles() {
     let request_time = Instant::now();
     let storage = Arc::new(Mutex::new(DocumentStorage::new()));
-    let analyzer = Analyzer::new(&storage, WorkspaceFinder::new(None));
+    let analyzers = AnalyzerSet::new(&storage, WorkspaceFinder::new(None));
 
-    assert!(analyzer
+    assert!(analyzers
         .analyze_file(&testdata("workspaces/cycles/ok1.gni"), request_time)
         .is_ok());
-    assert!(analyzer
+    assert!(analyzers
         .analyze_file(&testdata("workspaces/cycles/bad1.gni"), request_time)
         .is_ok());
 }

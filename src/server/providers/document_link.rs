@@ -36,7 +36,9 @@ pub async fn document_link(
     params: DocumentLinkParams,
 ) -> Result<Option<Vec<DocumentLink>>> {
     let path = get_text_document_path(&params.text_document)?;
-    let current_file = context.analyzer.analyze_file(&path, context.request_time)?;
+    let current_file = context
+        .analyzers
+        .analyze_file(&path, context.request_time)?;
 
     let links = current_file
         .links_map
@@ -80,7 +82,7 @@ pub async fn document_link_resolve(
     };
 
     let target_file = context
-        .analyzer
+        .analyzers
         .analyze_file(&data.path, context.request_time)?;
 
     let position = find_target(&target_file, &data.name)

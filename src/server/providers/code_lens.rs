@@ -47,7 +47,7 @@ fn compute_references_lens(
     range: Range,
     target_name: &str,
 ) -> Result<CodeLens> {
-    let current_file = context.analyzer.analyze_file(path, context.request_time)?;
+    let current_file = context.analyzers.analyze_file(path, context.request_time)?;
     let references = target_references(context, &current_file, target_name)?;
     let title = match references.len() {
         0 => "No references".to_string(),
@@ -78,7 +78,9 @@ pub async fn code_lens(
     }
 
     let path = get_text_document_path(&params.text_document)?;
-    let current_file = context.analyzer.analyze_file(&path, context.request_time)?;
+    let current_file = context
+        .analyzers
+        .analyze_file(&path, context.request_time)?;
 
     let targets: Vec<_> = current_file.analyzed_root.targets().collect();
 
@@ -146,7 +148,9 @@ pub async fn code_lens_resolve(
     let data = serde_json::from_value::<CodeLensData>(partial_lens.data.unwrap())?;
     match data {
         CodeLensData::TargetReferences(CodeLensDataTargetReferences { path, target_name }) => {
-            let current_file = context.analyzer.analyze_file(&path, context.request_time)?;
+            let current_file = context
+                .analyzers
+                .analyze_file(&path, context.request_time)?;
             wait_indexing(context, &current_file.workspace_root).await?;
             compute_references_lens(context, &path, partial_lens.range, &target_name)
         }

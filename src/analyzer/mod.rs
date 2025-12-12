@@ -29,7 +29,7 @@ pub use data::{
 pub use toplevel::TopLevelStatementsExt;
 
 use crate::{
-    analyzer::{data::WorkspaceContext, dotgn::evaluate_dot_gn, full::FullAnalyzer},
+    analyzer::{analyzer::Analyzer, data::WorkspaceContext, dotgn::evaluate_dot_gn},
     common::{
         error::{Error, Result},
         storage::DocumentStorage,
@@ -37,28 +37,28 @@ use crate::{
     },
 };
 
+mod analyzer;
 mod cache;
 mod data;
 mod dotgn;
-mod full;
 mod links;
 mod symbols;
 mod tests;
 mod toplevel;
 mod utils;
 
-pub struct Analyzer {
+pub struct AnalyzerSet {
     storage: Arc<Mutex<DocumentStorage>>,
     finder: WorkspaceFinder,
-    workspaces: RwLock<BTreeMap<PathBuf, Arc<Mutex<WorkspaceAnalyzer>>>>,
+    analyzers: RwLock<BTreeMap<PathBuf, Arc<Mutex<Analyzer>>>>,
 }
 
-impl Analyzer {
+impl AnalyzerSet {
     pub fn new(storage: &Arc<Mutex<DocumentStorage>>, finder: WorkspaceFinder) -> Self {
         Self {
             storage: storage.clone(),
             finder,
-            workspaces: Default::default(),
+            analyzers: Default::default(),
         }
     }
 
@@ -67,11 +67,8 @@ impl Analyzer {
         path: &Path,
         request_time: Instant,
     ) -> Result<Pin<Arc<AnalyzedFile>>> {
-        if !path.is_absolute() {
-            return Err(Error::General("Path must be absolute".to_string()));
-        }
         Ok(self
-            .workspace_for(path)?
+            .get_for(path)?
             .lock()
             .unwrap()
             .analyze_file(path, request_time))
@@ -84,29 +81,33 @@ impl Analyzer {
         request_time: Instant,
     ) -> Result<Environment> {
         Ok(self
-            .workspace_for(&file.document.path)?
+            .get_for(&file.document.path)?
             .lock()
             .unwrap()
             .analyze_environment(file, pos, request_time))
     }
 
     pub fn cached_files(&self, workspace_root: &Path) -> Vec<Pin<Arc<AnalyzedFile>>> {
-        let Some(workspace) = self.workspaces.read().unwrap().get(workspace_root).cloned() else {
+        let Some(analyzer) = self.analyzers.read().unwrap().get(workspace_root).cloned() else {
             return Vec::new();
         };
-        let cached_files = workspace.lock().unwrap().analyzer.cached_files();
+        let cached_files = analyzer.lock().unwrap().cached_files();
         cached_files
     }
 
     pub fn workspace_roots(&self) -> Vec<PathBuf> {
-        self.workspaces.read().unwrap().keys().cloned().collect()
+        self.analyzers.read().unwrap().keys().cloned().collect()
     }
 
     pub fn finder(&self) -> &WorkspaceFinder {
         &self.finder
     }
 
-    fn workspace_for(&self, path: &Path) -> Result<Arc<Mutex<WorkspaceAnalyzer>>> {
+    pub fn get_for(&self, path: &Path) -> Result<Arc<Mutex<Analyzer>>> {
+        if !path.is_absolute() {
+            return Err(Error::General("Path must be absolute".to_string()));
+        }
+
         let workspace_root = self
             .finder
             .find_for(path)
@@ -118,10 +119,10 @@ impl Analyzer {
         };
 
         {
-            let read_lock = self.workspaces.read().unwrap();
-            if let Some(workspace) = read_lock.get(workspace_root) {
-                if workspace.lock().unwrap().context.dot_gn_version == dot_gn_version {
-                    return Ok(workspace.clone());
+            let read_lock = self.analyzers.read().unwrap();
+            if let Some(analyzer) = read_lock.get(workspace_root) {
+                if analyzer.lock().unwrap().context().dot_gn_version == dot_gn_version {
+                    return Ok(analyzer.clone());
                 }
             }
         }
@@ -138,39 +139,12 @@ impl Analyzer {
             build_config,
         };
 
-        let workspace = Arc::new(Mutex::new(WorkspaceAnalyzer::new(&context, &self.storage)));
+        let analyzer = Arc::new(Mutex::new(Analyzer::new(&context, &self.storage)));
 
-        let mut write_lock = self.workspaces.write().unwrap();
+        let mut write_lock = self.analyzers.write().unwrap();
         Ok(write_lock
             .entry(workspace_root.to_path_buf())
-            .or_insert(workspace)
+            .or_insert(analyzer)
             .clone())
-    }
-}
-
-struct WorkspaceAnalyzer {
-    context: WorkspaceContext,
-    analyzer: FullAnalyzer,
-}
-
-impl WorkspaceAnalyzer {
-    pub fn new(context: &WorkspaceContext, storage: &Arc<Mutex<DocumentStorage>>) -> Self {
-        Self {
-            context: context.clone(),
-            analyzer: FullAnalyzer::new(context, storage),
-        }
-    }
-
-    pub fn analyze_file(&mut self, path: &Path, request_time: Instant) -> Pin<Arc<AnalyzedFile>> {
-        self.analyzer.analyze_file(path, request_time)
-    }
-
-    pub fn analyze_environment(
-        &mut self,
-        file: &Pin<Arc<AnalyzedFile>>,
-        pos: usize,
-        request_time: Instant,
-    ) -> Environment {
-        self.analyzer.analyze_environment(file, pos, request_time)
     }
 }

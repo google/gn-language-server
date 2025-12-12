@@ -35,7 +35,7 @@ use tower_lsp::{
 };
 
 use crate::{
-    analyzer::Analyzer,
+    analyzer::AnalyzerSet,
     common::{
         client::TestableClient, error::RpcResult, storage::DocumentStorage, utils::AsyncSignal,
         workspace::WorkspaceFinder,
@@ -47,7 +47,7 @@ mod providers;
 
 struct ServerContext {
     pub storage: Arc<Mutex<DocumentStorage>>,
-    pub analyzer: OnceLock<Arc<Analyzer>>,
+    pub analyzers: OnceLock<Arc<AnalyzerSet>>,
     pub indexed: Arc<Mutex<BTreeMap<PathBuf, AsyncSignal>>>,
     pub client: TestableClient,
 }
@@ -56,7 +56,7 @@ impl ServerContext {
     pub fn new(storage: Arc<Mutex<DocumentStorage>>, client: TestableClient) -> Self {
         Self {
             storage,
-            analyzer: OnceLock::new(),
+            analyzers: OnceLock::new(),
             indexed: Default::default(),
             client,
         }
@@ -65,14 +65,14 @@ impl ServerContext {
     #[cfg(test)]
     pub fn new_for_testing() -> Self {
         let storage = Arc::new(Mutex::new(DocumentStorage::new()));
-        let analyzer = OnceLock::new();
-        let _ = analyzer.set(Arc::new(Analyzer::new(
+        let analyzers = OnceLock::new();
+        let _ = analyzers.set(Arc::new(AnalyzerSet::new(
             &storage,
             WorkspaceFinder::new(None),
         )));
         Self {
             storage,
-            analyzer,
+            analyzers,
             indexed: Default::default(),
             client: TestableClient::new_for_testing(),
         }
@@ -81,7 +81,7 @@ impl ServerContext {
     pub fn request(&self) -> RequestContext {
         RequestContext {
             storage: self.storage.clone(),
-            analyzer: self.analyzer.get().unwrap().clone(),
+            analyzers: self.analyzers.get().unwrap().clone(),
             indexed: self.indexed.clone(),
             client: self.client.clone(),
             request_time: Instant::now(),
@@ -92,7 +92,7 @@ impl ServerContext {
 #[derive(Clone)]
 pub struct RequestContext {
     pub storage: Arc<Mutex<DocumentStorage>>,
-    pub analyzer: Arc<Analyzer>,
+    pub analyzers: Arc<AnalyzerSet>,
     pub indexed: Arc<Mutex<BTreeMap<PathBuf, AsyncSignal>>>,
     pub client: TestableClient,
     pub request_time: Instant,
@@ -117,7 +117,7 @@ impl Backend {
     }
 
     async fn maybe_index_workspace_for(&self, context: &RequestContext, path: &Path) {
-        let Some(workspace_root) = context.analyzer.finder().find_for(path) else {
+        let Some(workspace_root) = context.analyzers.finder().find_for(path) else {
             return;
         };
         let workspace_root = workspace_root.to_path_buf();
@@ -149,8 +149,8 @@ impl LanguageServer for Backend {
                 .and_then(|root_uri| root_uri.to_file_path().ok())
                 .as_deref(),
         );
-        let analyzer = Arc::new(Analyzer::new(&self.context.storage, finder));
-        self.context.analyzer.set(analyzer).ok();
+        let analyzers = Arc::new(AnalyzerSet::new(&self.context.storage, finder));
+        self.context.analyzers.set(analyzers).ok();
 
         Ok(InitializeResult {
             capabilities: ServerCapabilities {

@@ -28,14 +28,14 @@ pub async fn publish_diagnostics(context: &RequestContext, uri: &Url) {
         return;
     }
 
-    let Ok(current_file) = context.analyzer.analyze_file(&path, context.request_time) else {
+    let Ok(current_file) = context.analyzers.analyze_file(&path, context.request_time) else {
         return;
     };
 
     let diagnostics = compute_diagnostics(
         &current_file,
         &config,
-        &context.analyzer,
+        &context.analyzers,
         context.request_time,
     );
 
