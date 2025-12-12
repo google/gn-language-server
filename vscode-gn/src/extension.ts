@@ -223,7 +223,7 @@ async function startLanguageServer(
       (position: Position, locations: Location[]) =>
         showTargetReferences(client.protocol2CodeConverter, position, locations)
     ),
-    vscode.commands.registerCommand('gn.copyTargetLabel', copyTargetLabel),
+    vscode.commands.registerCommand('gn.copyTargetLabel', copyTargetLabel)
   );
 }
 
