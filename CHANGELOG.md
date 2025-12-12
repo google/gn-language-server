@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.10.0 (unreleased)
+
+- Overhaul environment analysis to properly fix the incorrectness problem on circular imports
+- Experimental support of code lens for targets (behind an experimental setting)
+- Added build attestation
+
 ## 1.8.0 (2025-10-01)
 
 - Workaround for "cycle detected" problem (#49)
