@@ -37,8 +37,8 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-go@v5
         with:
-          go-version: 1.24.1
-      - uses: dtolnay/rust-toolchain@fbaa7e9cfc198f7c12d653f12beae9646e216b29  # 1.85.1
+          go-version: 1.25.5
+      - uses: dtolnay/rust-toolchain@8a40291d6a0a08b8fb98b13bad5a0305b42d5f9c  # 1.92.0
         with:
           components: rustfmt, clippy
       - uses: Swatinem/rust-cache@9d47c6ad4b02e050fd481d890b2ea34778fd09d6  # v2.7.8
@@ -78,7 +78,7 @@ jobs:
     - uses: actions/checkout@v4
     - run: sudo apt-get install musl-tools
       if: matrix.os == 'ubuntu-latest'
-    - uses: dtolnay/rust-toolchain@fbaa7e9cfc198f7c12d653f12beae9646e216b29  # 1.85.1
+    - uses: dtolnay/rust-toolchain@8a40291d6a0a08b8fb98b13bad5a0305b42d5f9c  # 1.92.0
       with:
         targets: ${{ matrix.rust_target }}
     - uses: Swatinem/rust-cache@9d47c6ad4b02e050fd481d890b2ea34778fd09d6  # v2.7.8
@@ -171,7 +171,7 @@ jobs:
       - build
     steps:
       - uses: actions/checkout@v4
-      - uses: dtolnay/rust-toolchain@fbaa7e9cfc198f7c12d653f12beae9646e216b29  # 1.85.1
+      - uses: dtolnay/rust-toolchain@8a40291d6a0a08b8fb98b13bad5a0305b42d5f9c  # 1.92.0
       - run: if ! python3 scripts/is_prerelease.py; then cargo publish; fi
         env:
           CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}

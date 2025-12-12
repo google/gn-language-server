@@ -42,7 +42,7 @@ jobs:
           else
             echo "has_commits=yes" >> $GITHUB_OUTPUT
           fi
-      - uses: dtolnay/rust-toolchain@fbaa7e9cfc198f7c12d653f12beae9646e216b29  # 1.85.1
+      - uses: dtolnay/rust-toolchain@8a40291d6a0a08b8fb98b13bad5a0305b42d5f9c  # 1.92.0
         if: steps.check-commits.outputs.has_commits == 'yes'
       - uses: Swatinem/rust-cache@9d47c6ad4b02e050fd481d890b2ea34778fd09d6  # v2.7.8
         if: steps.check-commits.outputs.has_commits == 'yes'
