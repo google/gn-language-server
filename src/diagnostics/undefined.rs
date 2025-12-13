@@ -25,7 +25,10 @@ use crate::{
         AnalyzedBlock, AnalyzedFile, AnalyzedStatement, Analyzer, TopLevelStatementsExt, Variable,
         VariableMap, WorkspaceAnalyzer,
     },
-    common::{builtins::BUILTINS, utils::is_exported},
+    common::{
+        builtins::{BUILTINS, DEFINED},
+        utils::is_exported,
+    },
     parser::{Expr, Identifier, LValue, PrimaryExpr},
 };
 
@@ -118,14 +121,16 @@ impl<'i> PrimaryExpr<'i> {
             PrimaryExpr::Call(call) => {
                 call.function
                     .collect_undefined_identifiers(file, tracker, diagnostics);
-                for expr in &call.args {
-                    expr.collect_undefined_identifiers(
-                        file,
-                        analyzer,
-                        request_time,
-                        tracker,
-                        diagnostics,
-                    );
+                if call.function.name != DEFINED {
+                    for expr in &call.args {
+                        expr.collect_undefined_identifiers(
+                            file,
+                            analyzer,
+                            request_time,
+                            tracker,
+                            diagnostics,
+                        );
+                    }
                 }
             }
             PrimaryExpr::ArrayAccess(array_access) => {

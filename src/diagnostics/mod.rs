@@ -18,7 +18,6 @@ use tower_lsp::lsp_types::Diagnostic;
 
 use crate::{
     analyzer::{AnalyzedFile, Analyzer},
-    common::config::Configurations,
     diagnostics::{syntax::collect_syntax_errors, undefined::collect_undefined_identifiers},
 };
 
@@ -27,13 +26,13 @@ mod undefined;
 
 pub fn compute_diagnostics(
     file: &AnalyzedFile,
-    config: &Configurations,
     analyzer: &Analyzer,
+    undefined_variable_analysis: bool,
     request_time: Instant,
 ) -> Vec<Diagnostic> {
     let mut diagnostics =
         collect_syntax_errors(file.analyzed_root.block, file.analyzed_root.document);
-    if config.experimental.undefined_variable_analysis {
+    if undefined_variable_analysis {
         diagnostics.extend(collect_undefined_identifiers(file, analyzer, request_time));
     }
     diagnostics
