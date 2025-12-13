@@ -78,7 +78,7 @@ fn extract_symbols(file: &AnalyzedFile, query: &str) -> Vec<SymbolInformation> {
         if !name.to_lowercase().contains(query) {
             continue;
         }
-        if let Some(assignment) = variable.assignments.values().next() {
+        if let Some(assignment) = variable.assignments.first() {
             let span = match assignment.assignment_or_call {
                 Either::Left(assignment) => assignment.span,
                 Either::Right(call) => call.span,

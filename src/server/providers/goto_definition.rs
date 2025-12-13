@@ -114,7 +114,7 @@ pub async fn goto_definition(
 
     // Check variables.
     if let Some(variable) = environment.variables.get(ident.name) {
-        links.extend(variable.assignments.values().map(|assignment| {
+        links.extend(variable.assignments.iter().map(|assignment| {
             let span = match &assignment.assignment_or_call {
                 Either::Left(assignment) => assignment.span,
                 Either::Right(call) => call.span,

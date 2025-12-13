@@ -20,7 +20,10 @@ use tower_lsp::lsp_types::{TextDocumentIdentifier, Url};
 
 use crate::{
     analyzer::{AnalyzedFile, Target, Template, Variable},
-    common::{builtins::{FOREACH, FORWARD_VARIABLES_FROM}, error::{Error, Result}},
+    common::{
+        builtins::{FOREACH, FORWARD_VARIABLES_FROM},
+        error::{Error, Result},
+    },
     parser::{Identifier, Node},
 };
 
@@ -72,7 +75,7 @@ pub fn format_path(path: &Path, workspace_root: &Path) -> String {
 pub fn format_variable_help(variable: &Variable, workspace_root: &Path) -> Vec<String> {
     let first_assignment = variable
         .assignments
-        .values()
+        .iter()
         .sorted_by_key(|a| {
             let span = match &a.assignment_or_call {
                 either::Either::Left(assignment) => assignment.span,

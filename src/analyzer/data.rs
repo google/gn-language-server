@@ -33,12 +33,6 @@ use crate::{
     parser::{Assignment, Block, Call, Comments, Condition, Expr, Identifier},
 };
 
-#[derive(Clone, Debug, Eq, Hash, PartialEq)]
-pub struct PathSpan<'i> {
-    pub path: &'i Path,
-    pub span: Span<'i>,
-}
-
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct WorkspaceContext {
     pub root: PathBuf,
@@ -183,13 +177,7 @@ impl<'i, 'p> AnalyzedBlock<'i, 'p> {
                         .entry(assignment.primary_variable.as_str())
                         .or_insert_with(|| Variable::new(!declare_args_stack.is_empty()))
                         .assignments
-                        .insert(
-                            PathSpan {
-                                path: &assignment.document.path,
-                                span: assignment.primary_variable,
-                            },
-                            assignment,
-                        );
+                        .push(assignment);
                 }
                 AnalyzedStatement::Foreach(foreach) => {
                     let assignment = foreach.as_variable_assignment(self.document);
@@ -197,13 +185,7 @@ impl<'i, 'p> AnalyzedBlock<'i, 'p> {
                         .entry(assignment.primary_variable.as_str())
                         .or_insert_with(|| Variable::new(!declare_args_stack.is_empty()))
                         .assignments
-                        .insert(
-                            PathSpan {
-                                path: &assignment.document.path,
-                                span: assignment.primary_variable,
-                            },
-                            assignment,
-                        );
+                        .push(assignment);
                 }
                 AnalyzedStatement::ForwardVariablesFrom(forward_variables_from) => {
                     for assignment in forward_variables_from.as_variable_assignment(self.document) {
@@ -211,13 +193,7 @@ impl<'i, 'p> AnalyzedBlock<'i, 'p> {
                             .entry(assignment.primary_variable.as_str())
                             .or_insert_with(|| Variable::new(!declare_args_stack.is_empty()))
                             .assignments
-                            .insert(
-                                PathSpan {
-                                    path: &assignment.document.path,
-                                    span: assignment.primary_variable,
-                                },
-                                assignment,
-                            );
+                            .push(assignment);
                     }
                 }
                 AnalyzedStatement::DeclareArgs(declare_args) => {
@@ -473,14 +449,14 @@ impl<'i, 'p> AnalyzedTemplate<'i, 'p> {
 
 #[derive(Clone, Debug)]
 pub struct Variable<'i, 'p> {
-    pub assignments: HashMap<PathSpan<'i>, VariableAssignment<'i, 'p>>,
+    pub assignments: Vec<VariableAssignment<'i, 'p>>,
     pub is_args: bool,
 }
 
 impl Variable<'_, '_> {
     pub fn new(is_args: bool) -> Self {
         Self {
-            assignments: HashMap::new(),
+            assignments: Vec::new(),
             is_args,
         }
     }

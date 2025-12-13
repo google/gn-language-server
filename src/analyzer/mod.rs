@@ -26,7 +26,7 @@ use crate::{
     analyzer::{
         data::{
             AnalyzedBuiltinCall, AnalyzedCondition, AnalyzedDeclareArgs, AnalyzedForeach,
-            AnalyzedForwardVariablesFrom, FileExports, MutableFileExports, PathSpan, TemplateMap,
+            AnalyzedForwardVariablesFrom, FileExports, MutableFileExports, TemplateMap,
             VariableAssignment, WorkspaceContext,
         },
         dotgn::evaluate_dot_gn,
@@ -569,18 +569,12 @@ impl WorkspaceAnalyzer {
                             .entry(identifier.name)
                             .or_insert_with(|| Variable::new(!declare_args_stack.is_empty()))
                             .assignments
-                            .insert(
-                                PathSpan {
-                                    path: &document.path,
-                                    span: identifier.span,
-                                },
-                                VariableAssignment {
-                                    document,
-                                    assignment_or_call: Either::Left(assignment),
-                                    primary_variable: identifier.span,
-                                    comments: assignment.comments.clone(),
-                                },
-                            );
+                            .push(VariableAssignment {
+                                document,
+                                assignment_or_call: Either::Left(assignment),
+                                primary_variable: identifier.span,
+                                comments: assignment.comments.clone(),
+                            });
                     }
                 }
                 Statement::Call(call) => match call.function.name {
@@ -635,18 +629,12 @@ impl WorkspaceAnalyzer {
                                                 Variable::new(!declare_args_stack.is_empty())
                                             })
                                             .assignments
-                                            .insert(
-                                                PathSpan {
-                                                    path: &document.path,
-                                                    span: string.span,
-                                                },
-                                                VariableAssignment {
-                                                    document,
-                                                    assignment_or_call: Either::Right(call),
-                                                    primary_variable: string.span,
-                                                    comments: Comments::default(),
-                                                },
-                                            );
+                                            .push(VariableAssignment {
+                                                document,
+                                                assignment_or_call: Either::Right(call),
+                                                primary_variable: string.span,
+                                                comments: Comments::default(),
+                                            });
                                     }
                                 }
                             }
