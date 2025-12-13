@@ -29,7 +29,7 @@ def _ensure_gn(out_dir: str):
     gn_dir = os.path.join(out_dir, 'gn')
     if not os.path.exists(gn_dir):
         subprocess.check_call(['git', 'clone', 'https://gn.googlesource.com/gn'], cwd=out_dir)
-    subprocess.check_call(['git', 'checkout', '--quiet', 'c97a86a72105f3328a540f5a5ab17d11989ab7dd'], cwd=gn_dir)
+    subprocess.check_call(['git', 'checkout', '--quiet', '4e0818fd86bffc0b4a4b61d3295a6732ba08d715'], cwd=gn_dir)
 
 
 def _generate_builtins(out_dir: str):
