@@ -224,11 +224,8 @@ mod tests {
             CompletionParams {
                 text_document_position: TextDocumentPositionParams {
                     text_document: TextDocumentIdentifier {
-                        uri: Url::parse(&format!(
-                            "file://{}",
-                            testdata("workspaces/completion/BUILD.gn").display()
-                        ))
-                        .unwrap(),
+                        uri: Url::from_file_path(testdata("workspaces/completion/BUILD.gn"))
+                            .unwrap(),
                     },
                     position: Position::new(36, 0),
                 },
