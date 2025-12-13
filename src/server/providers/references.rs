@@ -38,7 +38,12 @@ pub fn target_references(
 ) -> Result<Vec<Location>> {
     let bad_prefixes = get_overlapping_targets(&current_file.analyzed_root, target_name);
 
-    let cached_files = context.analyzers.cached_files(&current_file.workspace_root);
+    let cached_files = context
+        .analyzer
+        .workspace_for(&current_file.workspace_root)?
+        .lock()
+        .unwrap()
+        .cached_files();
 
     let mut references: Vec<Location> = Vec::new();
     for file in cached_files {
@@ -78,9 +83,7 @@ pub async fn references(
     }
 
     let path = get_text_document_path(&params.text_document_position.text_document)?;
-    let current_file = context
-        .analyzers
-        .analyze_file(&path, context.request_time)?;
+    let current_file = context.analyzer.analyze_file(&path, context.request_time)?;
 
     let Some(pos) = current_file
         .document

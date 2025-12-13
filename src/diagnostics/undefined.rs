@@ -22,8 +22,8 @@ use tower_lsp::lsp_types::{Diagnostic, DiagnosticSeverity};
 
 use crate::{
     analyzer::{
-        AnalyzedBlock, AnalyzedFile, AnalyzedStatement, AnalyzerSet, TopLevelStatementsExt,
-        Variable, VariableMap,
+        AnalyzedBlock, AnalyzedFile, AnalyzedStatement, Analyzer, TopLevelStatementsExt, Variable,
+        VariableMap,
     },
     common::{builtins::BUILTINS, utils::is_exported},
     parser::{Expr, Identifier, LValue, PrimaryExpr},
@@ -106,7 +106,7 @@ impl<'i> PrimaryExpr<'i> {
     fn collect_undefined_identifiers(
         &self,
         file: &'i AnalyzedFile,
-        analyzers: &AnalyzerSet,
+        analyzer: &Analyzer,
         request_time: Instant,
         tracker: &VariablesTracker<'i, '_>,
         diagnostics: &mut Vec<Diagnostic>,
@@ -121,7 +121,7 @@ impl<'i> PrimaryExpr<'i> {
                 for expr in &call.args {
                     expr.collect_undefined_identifiers(
                         file,
-                        analyzers,
+                        analyzer,
                         request_time,
                         tracker,
                         diagnostics,
@@ -134,7 +134,7 @@ impl<'i> PrimaryExpr<'i> {
                     .collect_undefined_identifiers(file, tracker, diagnostics);
                 array_access.index.collect_undefined_identifiers(
                     file,
-                    analyzers,
+                    analyzer,
                     request_time,
                     tracker,
                     diagnostics,
@@ -148,7 +148,7 @@ impl<'i> PrimaryExpr<'i> {
             PrimaryExpr::ParenExpr(paren_expr) => {
                 paren_expr.expr.collect_undefined_identifiers(
                     file,
-                    analyzers,
+                    analyzer,
                     request_time,
                     tracker,
                     diagnostics,
@@ -158,7 +158,7 @@ impl<'i> PrimaryExpr<'i> {
                 for expr in &list_literal.values {
                     expr.collect_undefined_identifiers(
                         file,
-                        analyzers,
+                        analyzer,
                         request_time,
                         tracker,
                         diagnostics,
@@ -177,7 +177,7 @@ impl<'i> Expr<'i> {
     fn collect_undefined_identifiers(
         &self,
         file: &'i AnalyzedFile,
-        analyzers: &AnalyzerSet,
+        analyzer: &Analyzer,
         request_time: Instant,
         tracker: &VariablesTracker<'i, '_>,
         diagnostics: &mut Vec<Diagnostic>,
@@ -186,7 +186,7 @@ impl<'i> Expr<'i> {
             Expr::Primary(primary_expr) => {
                 primary_expr.collect_undefined_identifiers(
                     file,
-                    analyzers,
+                    analyzer,
                     request_time,
                     tracker,
                     diagnostics,
@@ -195,7 +195,7 @@ impl<'i> Expr<'i> {
             Expr::Unary(unary_expr) => {
                 unary_expr.expr.collect_undefined_identifiers(
                     file,
-                    analyzers,
+                    analyzer,
                     request_time,
                     tracker,
                     diagnostics,
@@ -204,14 +204,14 @@ impl<'i> Expr<'i> {
             Expr::Binary(binary_expr) => {
                 binary_expr.lhs.collect_undefined_identifiers(
                     file,
-                    analyzers,
+                    analyzer,
                     request_time,
                     tracker,
                     diagnostics,
                 );
                 binary_expr.rhs.collect_undefined_identifiers(
                     file,
-                    analyzers,
+                    analyzer,
                     request_time,
                     tracker,
                     diagnostics,
@@ -225,7 +225,7 @@ impl<'i, 'p> AnalyzedBlock<'i, 'p> {
     fn collect_undefined_identifiers(
         &self,
         file: &AnalyzedFile,
-        analyzers: &AnalyzerSet,
+        analyzer: &Analyzer,
         request_time: Instant,
         tracker: &mut VariablesTracker<'i, 'p>,
         diagnostics: &mut Vec<Diagnostic>,
@@ -237,7 +237,7 @@ impl<'i, 'p> AnalyzedBlock<'i, 'p> {
                     if let LValue::ArrayAccess(array_access) = &assignment.assignment.lvalue {
                         array_access.index.collect_undefined_identifiers(
                             file,
-                            analyzers,
+                            analyzer,
                             request_time,
                             tracker,
                             diagnostics,
@@ -245,7 +245,7 @@ impl<'i, 'p> AnalyzedBlock<'i, 'p> {
                     }
                     assignment.assignment.rvalue.collect_undefined_identifiers(
                         file,
-                        analyzers,
+                        analyzer,
                         request_time,
                         tracker,
                         diagnostics,
@@ -259,7 +259,7 @@ impl<'i, 'p> AnalyzedBlock<'i, 'p> {
                             .condition
                             .collect_undefined_identifiers(
                                 file,
-                                analyzers,
+                                analyzer,
                                 request_time,
                                 tracker,
                                 diagnostics,
@@ -275,7 +275,7 @@ impl<'i, 'p> AnalyzedBlock<'i, 'p> {
                 AnalyzedStatement::Foreach(foreach) => {
                     foreach.loop_items.collect_undefined_identifiers(
                         file,
-                        analyzers,
+                        analyzer,
                         request_time,
                         tracker,
                         diagnostics,
@@ -285,7 +285,7 @@ impl<'i, 'p> AnalyzedBlock<'i, 'p> {
                     for expr in &forward_variables_from.call.args {
                         expr.collect_undefined_identifiers(
                             file,
-                            analyzers,
+                            analyzer,
                             request_time,
                             tracker,
                             diagnostics,
@@ -296,7 +296,7 @@ impl<'i, 'p> AnalyzedBlock<'i, 'p> {
                     for expr in &target.call.args {
                         expr.collect_undefined_identifiers(
                             file,
-                            analyzers,
+                            analyzer,
                             request_time,
                             tracker,
                             diagnostics,
@@ -307,7 +307,7 @@ impl<'i, 'p> AnalyzedBlock<'i, 'p> {
                     for expr in &template.call.args {
                         expr.collect_undefined_identifiers(
                             file,
-                            analyzers,
+                            analyzer,
                             request_time,
                             tracker,
                             diagnostics,
@@ -323,7 +323,7 @@ impl<'i, 'p> AnalyzedBlock<'i, 'p> {
                     for expr in &builtin_call.call.args {
                         expr.collect_undefined_identifiers(
                             file,
-                            analyzers,
+                            analyzer,
                             request_time,
                             tracker,
                             diagnostics,
@@ -337,7 +337,7 @@ impl<'i, 'p> AnalyzedBlock<'i, 'p> {
             for subscope in statement.subscopes() {
                 subscope.collect_undefined_identifiers(
                     file,
-                    analyzers,
+                    analyzer,
                     request_time,
                     &mut tracker.clone(),
                     diagnostics,
@@ -365,7 +365,7 @@ impl<'i, 'p> AnalyzedBlock<'i, 'p> {
                     }
                 }
                 AnalyzedStatement::Import(import) => {
-                    if let Ok(analyzer) = analyzers.get_for(&import.path) {
+                    if let Ok(analyzer) = analyzer.workspace_for(&import.path) {
                         let mut analyzer = analyzer.lock().unwrap();
                         let imported_file = analyzer.analyze_file(&import.path, request_time);
                         let imported_environment = analyzer.analyze_environment(
@@ -393,13 +393,13 @@ impl<'i, 'p> AnalyzedBlock<'i, 'p> {
 
 pub fn collect_undefined_identifiers(
     file: &AnalyzedFile,
-    analyzers: &AnalyzerSet,
+    analyzer: &Analyzer,
     request_time: Instant,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
     file.analyzed_root.collect_undefined_identifiers(
         file,
-        analyzers,
+        analyzer,
         request_time,
         &mut VariablesTracker::new(),
         diagnostics,

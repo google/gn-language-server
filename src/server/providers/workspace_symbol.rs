@@ -35,9 +35,9 @@ pub async fn workspace_symbol(
 
     let mut symbols = Vec::new();
     let query = params.query.to_lowercase();
-    let workspace_roots = context.analyzers.workspace_roots();
+    let workspaces = context.analyzer.workspaces();
 
-    for workspace_root in workspace_roots {
+    for (workspace_root, workspace) in workspaces {
         let signal = context
             .indexed
             .lock()
@@ -48,7 +48,7 @@ pub async fn workspace_symbol(
             signal.wait().await;
         }
 
-        let files = context.analyzers.cached_files(&workspace_root);
+        let files = workspace.lock().unwrap().cached_files();
         for file in files {
             symbols.extend(extract_symbols(&file, &query));
         }

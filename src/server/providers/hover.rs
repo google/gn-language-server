@@ -27,9 +27,7 @@ use crate::{
 
 pub async fn hover(context: &RequestContext, params: HoverParams) -> Result<Option<Hover>> {
     let path = get_text_document_path(&params.text_document_position_params.text_document)?;
-    let current_file = context
-        .analyzers
-        .analyze_file(&path, context.request_time)?;
+    let current_file = context.analyzer.analyze_file(&path, context.request_time)?;
 
     let Some(pos) = current_file
         .document
@@ -45,7 +43,7 @@ pub async fn hover(context: &RequestContext, params: HoverParams) -> Result<Opti
 
     let environment =
         context
-            .analyzers
+            .analyzer
             .analyze_environment(&current_file, pos, context.request_time)?;
 
     let mut sections: Vec<Vec<MarkedString>> = Vec::new();

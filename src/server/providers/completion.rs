@@ -100,7 +100,7 @@ fn build_identifier_completions(
 
     let environment =
         context
-            .analyzers
+            .analyzer
             .analyze_environment(current_file, offset, context.request_time)?;
 
     // Enumerate variables at the current scope.
@@ -180,9 +180,7 @@ pub async fn completion(
     params: CompletionParams,
 ) -> Result<Option<CompletionResponse>> {
     let path = get_text_document_path(&params.text_document_position.text_document)?;
-    let current_file = context
-        .analyzers
-        .analyze_file(&path, context.request_time)?;
+    let current_file = context.analyzer.analyze_file(&path, context.request_time)?;
 
     let offset = current_file
         .document

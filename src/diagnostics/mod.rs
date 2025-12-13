@@ -17,7 +17,7 @@ use std::time::Instant;
 use tower_lsp::lsp_types::Diagnostic;
 
 use crate::{
-    analyzer::{AnalyzedFile, AnalyzerSet},
+    analyzer::{AnalyzedFile, Analyzer},
     common::config::Configurations,
     diagnostics::{syntax::collect_syntax_errors, undefined::collect_undefined_identifiers},
 };
@@ -28,7 +28,7 @@ mod undefined;
 pub fn compute_diagnostics(
     file: &AnalyzedFile,
     config: &Configurations,
-    analyzers: &AnalyzerSet,
+    analyzer: &Analyzer,
     request_time: Instant,
 ) -> Vec<Diagnostic> {
     let mut diagnostics = Vec::new();
@@ -38,7 +38,7 @@ pub fn compute_diagnostics(
         &mut diagnostics,
     );
     if config.experimental.undefined_variable_analysis {
-        collect_undefined_identifiers(file, analyzers, request_time, &mut diagnostics);
+        collect_undefined_identifiers(file, analyzer, request_time, &mut diagnostics);
     }
     diagnostics
 }
