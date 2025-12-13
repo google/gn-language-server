@@ -63,12 +63,12 @@ impl ServerContext {
     }
 
     #[cfg(test)]
-    pub fn new_for_testing() -> Self {
+    pub fn new_for_testing(client_root: Option<&Path>) -> Self {
         let storage = Arc::new(Mutex::new(DocumentStorage::new()));
         let analyzer = OnceLock::new();
         let _ = analyzer.set(Arc::new(Analyzer::new(
             &storage,
-            WorkspaceFinder::new(None),
+            WorkspaceFinder::new(client_root),
         )));
         Self {
             storage,
@@ -100,8 +100,8 @@ pub struct RequestContext {
 
 impl RequestContext {
     #[cfg(test)]
-    pub fn new_for_testing() -> Self {
-        ServerContext::new_for_testing().request()
+    pub fn new_for_testing(client_root: Option<&Path>) -> Self {
+        ServerContext::new_for_testing(client_root).request()
     }
 }
 

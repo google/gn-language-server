@@ -130,7 +130,7 @@ fn build_identifier_completions(
         }
     });
 
-    // Enumerate buildins.
+    // Enumerate builtins.
     let builtin_function_items = BUILTINS
         .functions
         .iter()
@@ -205,4 +205,92 @@ pub async fn completion(
     // Handle identifier completions.
     let items = build_identifier_completions(context, &current_file, offset)?;
     Ok(Some(CompletionResponse::Array(items)))
+}
+
+#[cfg(test)]
+mod tests {
+    use std::collections::HashSet;
+
+    use tower_lsp::lsp_types::{Position, TextDocumentIdentifier, TextDocumentPositionParams, Url};
+
+    use crate::common::testutils::testdata;
+
+    use super::*;
+
+    #[tokio::test]
+    async fn test_smoke() {
+        let response = completion(
+            &RequestContext::new_for_testing(Some(&testdata("workspaces/completion"))),
+            CompletionParams {
+                text_document_position: TextDocumentPositionParams {
+                    text_document: TextDocumentIdentifier {
+                        uri: Url::parse(&format!(
+                            "file://{}",
+                            testdata("workspaces/completion/BUILD.gn").display()
+                        ))
+                        .unwrap(),
+                    },
+                    position: Position::new(36, 0),
+                },
+                work_done_progress_params: Default::default(),
+                partial_result_params: Default::default(),
+                context: Default::default(),
+            },
+        )
+        .await
+        .unwrap()
+        .unwrap();
+
+        let CompletionResponse::Array(items) = response else {
+            panic!();
+        };
+
+        // Don't return duplicates.
+        let duplicates: Vec<_> = items
+            .iter()
+            .filter(|item| item.label != "cflags" && item.label != "pool")
+            .map(|item| item.label.as_str())
+            .duplicates()
+            .collect();
+        assert!(
+            duplicates.is_empty(),
+            "Duplicates in completion items: {}",
+            duplicates.iter().sorted().join(", ")
+        );
+
+        // Check items.
+        let names: HashSet<_> = items.iter().map(|item| item.label.as_str()).collect();
+
+        let expectation = [
+            ("config_variable", true),
+            ("_config_variable", false),
+            ("config_template", true),
+            ("_config_template", false),
+            ("import_variable", true),
+            ("_import_variable", false),
+            ("import_template", true),
+            ("_import_template", false),
+            ("indirect_variable", true),
+            ("_indirect_variable", false),
+            ("indirect_template", true),
+            ("_indirect_template", false),
+            ("outer_variable", true),
+            ("_outer_variable", true),
+            ("outer_template", true),
+            ("_outer_template", true),
+            ("inner_variable", true),
+            ("_inner_variable", true),
+            ("inner_template", true),
+            ("_inner_template", true),
+            ("child_variable", false),
+            ("_child_variable", false),
+            ("child_template", false),
+            ("_child_template", false),
+        ];
+
+        for (name, want) in expectation {
+            let got = names.contains(name);
+            assert_eq!(got, want, "{name}: got {got}, want {want}");
+        }
+    }
 }

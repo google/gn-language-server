@@ -108,9 +108,12 @@ mod tests {
             work_done_progress_params: WorkDoneProgressParams::default(),
         };
 
-        let response = hover(&RequestContext::new_for_testing(), params)
-            .await
-            .unwrap();
+        let response = hover(
+            &RequestContext::new_for_testing(Some(&testdata("workspaces/hover"))),
+            params,
+        )
+        .await
+        .unwrap();
 
         assert_eq!(
             response,
