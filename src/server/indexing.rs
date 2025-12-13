@@ -19,7 +19,7 @@ use tower_lsp::lsp_types::MessageType;
 use crate::{
     common::{
         error::{Error, Result},
-        utils::find_gn_files,
+        utils::find_gn_in_workspace_for_scan,
     },
     server::RequestContext,
 };
@@ -36,7 +36,7 @@ pub async fn index(context: &RequestContext, workspace_root: &Path) {
     let start_time = Instant::now();
     let mut count = 0;
 
-    for path in find_gn_files(workspace_root) {
+    for path in find_gn_in_workspace_for_scan(workspace_root) {
         context
             .analyzer
             .analyze_file(&path, context.request_time)

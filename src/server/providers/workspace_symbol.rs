@@ -48,7 +48,7 @@ pub async fn workspace_symbol(
             signal.wait().await;
         }
 
-        let files = workspace.lock().unwrap().cached_files();
+        let files = workspace.lock().unwrap().cached_files_for_symbols();
         for file in files {
             symbols.extend(extract_symbols(&file, &query));
         }

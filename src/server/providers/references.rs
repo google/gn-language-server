@@ -43,7 +43,7 @@ pub fn target_references(
         .workspace_for(&current_file.workspace_root)?
         .lock()
         .unwrap()
-        .cached_files();
+        .cached_files_for_references();
 
     let mut references: Vec<Location> = Vec::new();
     for file in cached_files {

@@ -14,7 +14,7 @@
 
 use std::path::{Path, PathBuf};
 
-fn find_nearest_workspace_root(file: &Path) -> Option<&Path> {
+pub fn find_nearest_workspace_root(file: &Path) -> Option<&Path> {
     file.ancestors().find(|&dir| dir.join(".gn").exists())
 }
 

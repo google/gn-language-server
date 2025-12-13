@@ -22,7 +22,9 @@ use futures::future::join_all;
 
 use crate::{
     analyzer::Analyzer,
-    common::{storage::DocumentStorage, utils::find_gn_files, workspace::WorkspaceFinder},
+    common::{
+        storage::DocumentStorage, utils::find_gn_in_workspace_for_scan, workspace::WorkspaceFinder,
+    },
 };
 
 pub async fn run_bench(workspace_root: &Path) {
@@ -36,7 +38,7 @@ pub async fn run_bench(workspace_root: &Path) {
     let mut count = 0;
 
     let mut tasks = Vec::new();
-    for path in find_gn_files(workspace_root) {
+    for path in find_gn_in_workspace_for_scan(workspace_root) {
         let analyzer = analyzer.clone();
         tasks.push(tokio::spawn(async move {
             analyzer.analyze_file(&path, start_time).ok();

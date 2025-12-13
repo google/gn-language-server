@@ -29,6 +29,7 @@ use crate::{
     common::{
         storage::{Document, DocumentVersion},
         utils::parse_simple_literal,
+        workspace::find_nearest_workspace_root,
     },
     parser::{Assignment, Block, Call, Comments, Condition, Expr, Identifier},
 };
@@ -105,6 +106,7 @@ pub struct AnalyzedFile {
     pub exports: FileExports<'static, 'static>,
     pub links_map: HashMap<PathBuf, Vec<AnalyzedLink<'static>>>,
     pub symbols: Vec<DocumentSymbol>,
+    pub external: bool,
     pub key: Arc<CacheKey>,
 }
 
@@ -120,6 +122,8 @@ impl AnalyzedFile {
         symbols: Vec<DocumentSymbol>,
         request_time: Instant,
     ) -> Pin<Arc<Self>> {
+        let external =
+            !find_nearest_workspace_root(&document.path).is_some_and(|path| path == workspace_root);
         let key = CacheKey::new(document.path.clone(), document.version, request_time);
         Arc::pin(Self {
             document,
@@ -129,6 +133,7 @@ impl AnalyzedFile {
             exports,
             links_map,
             symbols,
+            external,
             key,
         })
     }

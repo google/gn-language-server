@@ -173,7 +173,15 @@ impl WorkspaceAnalyzer {
         &self.context
     }
 
-    pub fn cached_files(&self) -> Vec<Pin<Arc<AnalyzedFile>>> {
+    pub fn cached_files_for_symbols(&self) -> Vec<Pin<Arc<AnalyzedFile>>> {
+        self.cache
+            .values()
+            .filter(|file| !file.external)
+            .cloned()
+            .collect()
+    }
+
+    pub fn cached_files_for_references(&self) -> Vec<Pin<Arc<AnalyzedFile>>> {
         self.cache.values().cloned().collect()
     }
 
