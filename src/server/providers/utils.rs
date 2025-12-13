@@ -20,7 +20,7 @@ use tower_lsp::lsp_types::{TextDocumentIdentifier, Url};
 
 use crate::{
     analyzer::{AnalyzedFile, Target, Template, Variable},
-    common::error::{Error, Result},
+    common::{builtins::{FOREACH, FORWARD_VARIABLES_FROM}, error::{Error, Result}},
     parser::{Identifier, Node},
 };
 
@@ -101,8 +101,12 @@ pub fn format_variable_help(variable: &Variable, workspace_root: &Path) -> Vec<S
                 )
             }
             Either::Right(call) => {
-                assert_eq!(call.function.name, "forward_variables_from");
-                call.span.as_str().to_string()
+                match call.function.name {
+                    FORWARD_VARIABLES_FROM => call.span.as_str().to_string(),
+                    // TODO: Include the entire foreach call (without block)
+                    FOREACH => call.args[0].span().as_str().to_string(),
+                    _ => panic!("Unexpected assignment: {}", call.function.name),
+                }
             }
         }
     } else {
