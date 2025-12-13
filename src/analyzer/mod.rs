@@ -87,7 +87,7 @@ impl Analyzer {
             .analyze_file(path, request_time))
     }
 
-    pub fn analyze_environment(
+    pub fn analyze_at(
         &self,
         file: &Pin<Arc<AnalyzedFile>>,
         pos: usize,
@@ -97,7 +97,7 @@ impl Analyzer {
             .workspace_for(&file.document.path)?
             .lock()
             .unwrap()
-            .analyze_environment(file, pos, request_time))
+            .analyze_at(file, pos, request_time))
     }
 
     pub fn workspaces(&self) -> BTreeMap<PathBuf, Arc<Mutex<WorkspaceAnalyzer>>> {
@@ -192,7 +192,27 @@ impl WorkspaceAnalyzer {
         new_file
     }
 
-    pub fn analyze_environment(
+    pub fn analyze_files(&mut self, path: &Path, request_time: Instant) -> Environment {
+        let mut environment = Environment::new();
+        let mut visited = HashSet::from([path.to_path_buf()]);
+
+        let current_file = self.analyze_file(path, request_time);
+
+        for child_path in current_file.exports.children.as_ref() {
+            self.collect_environments(child_path, request_time, &mut visited, &mut environment);
+        }
+
+        environment
+            .variables
+            .extend(current_file.exports.variables.as_ref().clone());
+        environment
+            .templates
+            .extend(current_file.exports.templates.as_ref().clone());
+        environment.files.push(current_file);
+        environment
+    }
+
+    pub fn analyze_at(
         &mut self,
         file: &Pin<Arc<AnalyzedFile>>,
         pos: usize,

@@ -23,7 +23,7 @@ use tower_lsp::lsp_types::{Diagnostic, DiagnosticSeverity};
 use crate::{
     analyzer::{
         AnalyzedBlock, AnalyzedFile, AnalyzedStatement, Analyzer, TopLevelStatementsExt, Variable,
-        VariableMap,
+        VariableMap, WorkspaceAnalyzer,
     },
     common::{builtins::BUILTINS, utils::is_exported},
     parser::{Expr, Identifier, LValue, PrimaryExpr},
@@ -106,7 +106,7 @@ impl<'i> PrimaryExpr<'i> {
     fn collect_undefined_identifiers(
         &self,
         file: &'i AnalyzedFile,
-        analyzer: &Analyzer,
+        analyzer: &mut WorkspaceAnalyzer,
         request_time: Instant,
         tracker: &VariablesTracker<'i, '_>,
         diagnostics: &mut Vec<Diagnostic>,
@@ -177,7 +177,7 @@ impl<'i> Expr<'i> {
     fn collect_undefined_identifiers(
         &self,
         file: &'i AnalyzedFile,
-        analyzer: &Analyzer,
+        analyzer: &mut WorkspaceAnalyzer,
         request_time: Instant,
         tracker: &VariablesTracker<'i, '_>,
         diagnostics: &mut Vec<Diagnostic>,
@@ -225,7 +225,7 @@ impl<'i, 'p> AnalyzedBlock<'i, 'p> {
     fn collect_undefined_identifiers(
         &self,
         file: &AnalyzedFile,
-        analyzer: &Analyzer,
+        analyzer: &mut WorkspaceAnalyzer,
         request_time: Instant,
         tracker: &mut VariablesTracker<'i, 'p>,
         diagnostics: &mut Vec<Diagnostic>,
@@ -365,21 +365,13 @@ impl<'i, 'p> AnalyzedBlock<'i, 'p> {
                     }
                 }
                 AnalyzedStatement::Import(import) => {
-                    if let Ok(analyzer) = analyzer.workspace_for(&import.path) {
-                        let mut analyzer = analyzer.lock().unwrap();
-                        let imported_file = analyzer.analyze_file(&import.path, request_time);
-                        let imported_environment = analyzer.analyze_environment(
-                            &imported_file,
-                            imported_file.document.data.len(),
-                            request_time,
-                        );
-                        tracker.extend(
-                            imported_environment
-                                .variables
-                                .into_iter()
-                                .filter(|(name, _)| is_exported(name)),
-                        );
-                    }
+                    let imported_environment = analyzer.analyze_files(&import.path, request_time);
+                    tracker.extend(
+                        imported_environment
+                            .variables
+                            .into_iter()
+                            .filter(|(name, _)| is_exported(name)),
+                    );
                 }
                 AnalyzedStatement::Conditions(_)
                 | AnalyzedStatement::DeclareArgs(_)
@@ -395,13 +387,25 @@ pub fn collect_undefined_identifiers(
     file: &AnalyzedFile,
     analyzer: &Analyzer,
     request_time: Instant,
-    diagnostics: &mut Vec<Diagnostic>,
-) {
+) -> Vec<Diagnostic> {
+    let Ok(analyzer) = analyzer.workspace_for(&file.workspace_root) else {
+        return Vec::new();
+    };
+    let mut analyzer = analyzer.lock().unwrap();
+
+    // Process BUILDCONFIG.gn.
+    let mut tracker = VariablesTracker::new();
+    let build_config = analyzer.context().build_config.clone();
+    let environment = analyzer.analyze_files(&build_config, request_time);
+    tracker.extend(environment.variables.clone());
+
+    let mut diagnostics: Vec<Diagnostic> = Vec::new();
     file.analyzed_root.collect_undefined_identifiers(
         file,
-        analyzer,
+        &mut analyzer,
         request_time,
-        &mut VariablesTracker::new(),
-        diagnostics,
+        &mut tracker,
+        &mut diagnostics,
     );
+    diagnostics
 }

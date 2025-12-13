@@ -31,14 +31,10 @@ pub fn compute_diagnostics(
     analyzer: &Analyzer,
     request_time: Instant,
 ) -> Vec<Diagnostic> {
-    let mut diagnostics = Vec::new();
-    collect_syntax_errors(
-        file.analyzed_root.block,
-        file.analyzed_root.document,
-        &mut diagnostics,
-    );
+    let mut diagnostics =
+        collect_syntax_errors(file.analyzed_root.block, file.analyzed_root.document);
     if config.experimental.undefined_variable_analysis {
-        collect_undefined_identifiers(file, analyzer, request_time, &mut diagnostics);
+        diagnostics.extend(collect_undefined_identifiers(file, analyzer, request_time));
     }
     diagnostics
 }

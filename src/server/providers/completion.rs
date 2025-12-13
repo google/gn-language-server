@@ -98,10 +98,9 @@ fn build_identifier_completions(
         return Ok(Vec::new());
     }
 
-    let environment =
-        context
-            .analyzer
-            .analyze_environment(current_file, offset, context.request_time)?;
+    let environment = context
+        .analyzer
+        .analyze_at(current_file, offset, context.request_time)?;
 
     // Enumerate variables at the current scope.
     let variable_items = environment.variables.iter().map(|(name, variable)| {

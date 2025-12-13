@@ -41,10 +41,9 @@ pub async fn hover(context: &RequestContext, params: HoverParams) -> Result<Opti
         return Ok(None);
     };
 
-    let environment =
-        context
-            .analyzer
-            .analyze_environment(&current_file, pos, context.request_time)?;
+    let environment = context
+        .analyzer
+        .analyze_at(&current_file, pos, context.request_time)?;
 
     let mut sections: Vec<Vec<MarkedString>> = Vec::new();
 

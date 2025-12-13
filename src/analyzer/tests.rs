@@ -42,9 +42,7 @@ fn test_analyze_smoke() {
         .all(|s| !matches!(s, Statement::Error(_))));
 
     // Inspect the environment.
-    let environment = analyzer
-        .analyze_environment(&file, 0, Instant::now())
-        .unwrap();
+    let environment = analyzer.analyze_at(&file, 0, Instant::now()).unwrap();
     assert!(environment.variables.contains_key("enable_opt"));
     assert!(environment.variables.contains_key("_lib"));
     assert!(environment.variables.contains_key("is_linux"));
