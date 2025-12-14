@@ -124,7 +124,7 @@ impl AnalyzedFile {
         request_time: Instant,
     ) -> Pin<Arc<Self>> {
         let external =
-            !find_nearest_workspace_root(&document.path).is_some_and(|path| path == workspace_root);
+            find_nearest_workspace_root(&document.path).is_none_or(|path| path != workspace_root);
         let key = CacheKey::new(document.path.clone(), document.version, request_time);
         Arc::pin(Self {
             document,
