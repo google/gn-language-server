@@ -17,10 +17,7 @@ use tower_lsp::lsp_types::{Hover, HoverContents, HoverParams, MarkedString};
 use crate::{
     common::{builtins::BUILTINS, error::Result},
     server::{
-        providers::utils::{
-            format_template_help, format_variable_help, get_text_document_path,
-            lookup_identifier_at,
-        },
+        providers::utils::{get_text_document_path, lookup_identifier_at},
         RequestContext,
     },
 };
@@ -50,7 +47,8 @@ pub async fn hover(context: &RequestContext, params: HoverParams) -> Result<Opti
     // Check templates.
     if let Some(template) = environment.templates.get(ident.name) {
         sections.push(
-            format_template_help(template, &current_file.workspace_root)
+            template
+                .format_help(&current_file.workspace_root)
                 .into_iter()
                 .map(MarkedString::from_markdown)
                 .collect(),
@@ -60,7 +58,8 @@ pub async fn hover(context: &RequestContext, params: HoverParams) -> Result<Opti
     // Check variables.
     if let Some(variable) = environment.variables.get(ident.name) {
         sections.push(
-            format_variable_help(variable, &current_file.workspace_root)
+            variable
+                .format_help(&current_file.workspace_root)
                 .into_iter()
                 .map(MarkedString::from_markdown)
                 .collect(),

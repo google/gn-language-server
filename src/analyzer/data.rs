@@ -22,16 +22,17 @@ use std::{
 
 use either::Either;
 use pest::Span;
-use tower_lsp::lsp_types::DocumentSymbol;
+use tower_lsp::lsp_types::{DocumentSymbol, Url};
 
 use crate::{
     analyzer::{cache::CacheKey, toplevel::TopLevelStatementsExt, utils::resolve_path},
     common::{
+        builtins::{FOREACH, FORWARD_VARIABLES_FROM},
         storage::{Document, DocumentVersion},
-        utils::parse_simple_literal,
+        utils::{format_path, parse_simple_literal},
         workspace::find_nearest_workspace_root,
     },
-    parser::{Assignment, Block, Call, Comments, Condition, Expr, Identifier},
+    parser::{Assignment, Block, Call, Comments, Condition, Expr, Identifier, Node},
 };
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -440,6 +441,33 @@ pub struct Template<'i, 'p> {
     pub comments: Comments<'i>,
 }
 
+impl Template<'_, '_> {
+    pub fn format_help(&self, workspace_root: &Path) -> Vec<String> {
+        let mut paragraphs = vec![format!("```gn\ntemplate(\"{}\") {{ ... }}\n```", self.name)];
+        if !self.comments.is_empty() {
+            paragraphs.push(format!(
+                "```text\n{}\n```",
+                self.comments.to_string().trim()
+            ));
+        };
+        let position = self
+            .document
+            .line_index
+            .position(self.call.function.span.start());
+        paragraphs.push(format!(
+            "Defined at [{}:{}:{}]({}#L{},{})",
+            format_path(&self.document.path, workspace_root),
+            position.line + 1,
+            position.character + 1,
+            Url::from_file_path(&self.document.path).unwrap(),
+            position.line + 1,
+            position.character + 1,
+        ));
+
+        paragraphs
+    }
+}
+
 impl<'i, 'p> AnalyzedTemplate<'i, 'p> {
     pub fn as_template(&self, document: &'i Document) -> Option<Template<'i, 'p>> {
         let name = self.name.as_simple_string()?;
@@ -464,6 +492,73 @@ impl Variable<'_, '_> {
             assignments: Vec::new(),
             is_args,
         }
+    }
+
+    pub fn format_help(&self, workspace_root: &Path) -> Vec<String> {
+        let first_assignment = self.assignments.first().unwrap();
+        let single_assignment = self.assignments.len() == 1;
+
+        let snippet = if single_assignment {
+            match first_assignment.assignment_or_call {
+                Either::Left(assignment) => {
+                    let raw_value = assignment.rvalue.span().as_str();
+                    let display_value = if raw_value.lines().count() <= 5 {
+                        raw_value
+                    } else {
+                        "..."
+                    };
+                    format!(
+                        "{} {} {}",
+                        assignment.lvalue.span().as_str(),
+                        assignment.op,
+                        display_value
+                    )
+                }
+                Either::Right(call) => {
+                    match call.function.name {
+                        FORWARD_VARIABLES_FROM => call.span.as_str().to_string(),
+                        // TODO: Include the entire foreach call (without block)
+                        FOREACH => call.args[0].span().as_str().to_string(),
+                        _ => panic!("Unexpected assignment: {}", call.function.name),
+                    }
+                }
+            }
+        } else {
+            format!("{} = ...", first_assignment.primary_variable.as_str())
+        };
+
+        let mut paragraphs = vec![format!("```gn\n{snippet}\n```")];
+
+        if single_assignment {
+            paragraphs.push(format!(
+                "```text\n{}\n```",
+                first_assignment.comments.to_string().trim()
+            ));
+        }
+
+        let span = match &first_assignment.assignment_or_call {
+            Either::Left(assignment) => assignment.span,
+            Either::Right(call) => call.span,
+        };
+        let position = first_assignment.document.line_index.position(span.start());
+        paragraphs.push(if single_assignment {
+            format!(
+                "Defined at [{}:{}:{}]({}#L{},{})",
+                format_path(&first_assignment.document.path, workspace_root),
+                position.line + 1,
+                position.character + 1,
+                Url::from_file_path(&first_assignment.document.path).unwrap(),
+                position.line + 1,
+                position.character + 1,
+            )
+        } else {
+            format!(
+                "Defined and modified in {} locations",
+                self.assignments.len()
+            )
+        });
+
+        paragraphs
     }
 }
 

@@ -26,6 +26,14 @@ pub fn is_exported(name: &str) -> bool {
     !name.starts_with("_")
 }
 
+pub fn format_path(path: &Path, workspace_root: &Path) -> String {
+    if let Ok(relative_path) = path.strip_prefix(workspace_root) {
+        format!("//{}", relative_path.to_string_lossy())
+    } else {
+        path.to_string_lossy().to_string()
+    }
+}
+
 pub fn walk_source_dirs(root: &Path) -> impl Iterator<Item = PathBuf> {
     WalkDir::new(root)
         .into_iter()

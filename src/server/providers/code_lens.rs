@@ -18,13 +18,10 @@ use serde_json::Value;
 use tower_lsp::lsp_types::{CodeLens, CodeLensParams, Command, Range};
 
 use crate::{
-    common::error::Result,
+    common::{error::Result, utils::format_path},
     server::{
         indexing::{check_indexing, wait_indexing},
-        providers::{
-            references::target_references,
-            utils::{format_path, get_text_document_path},
-        },
+        providers::{references::target_references, utils::get_text_document_path},
         RequestContext,
     },
 };

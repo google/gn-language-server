@@ -24,10 +24,7 @@ use crate::{
     analyzer::AnalyzedFile,
     common::{builtins::BUILTINS, error::Result},
     parser::{Block, Node},
-    server::{
-        providers::utils::{format_template_help, format_variable_help, get_text_document_path},
-        RequestContext,
-    },
+    server::{providers::utils::get_text_document_path, RequestContext},
 };
 
 fn get_prefix_string_for_completion<'i>(ast: &Block<'i>, offset: usize) -> Option<&'i str> {
@@ -104,7 +101,7 @@ fn build_identifier_completions(
 
     // Enumerate variables at the current scope.
     let variable_items = environment.variables.iter().map(|(name, variable)| {
-        let paragraphs = format_variable_help(variable, &current_file.workspace_root);
+        let paragraphs = variable.format_help(&current_file.workspace_root);
         CompletionItem {
             label: name.to_string(),
             kind: Some(CompletionItemKind::VARIABLE),
@@ -118,7 +115,7 @@ fn build_identifier_completions(
 
     // Enumerate templates defined at the current position.
     let template_items = environment.templates.values().map(|template| {
-        let paragraphs = format_template_help(template, &current_file.workspace_root);
+        let paragraphs = template.format_help(&current_file.workspace_root);
         CompletionItem {
             label: template.name.to_string(),
             kind: Some(CompletionItemKind::FUNCTION),
