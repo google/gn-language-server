@@ -12,86 +12,82 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use std::{
-    sync::{Arc, OnceLock},
-    time::Instant,
-};
+use std::{collections::HashSet, sync::OnceLock, time::Instant};
 
 use either::Either;
 use tower_lsp::lsp_types::{Diagnostic, DiagnosticSeverity};
 
 use crate::{
     analyzer::{
-        AnalyzedBlock, AnalyzedFile, AnalyzedStatement, Analyzer, TopLevelStatementsExt, Variable,
-        VariableMap, WorkspaceAnalyzer,
+        AnalyzedBlock, AnalyzedFile, AnalyzedStatement, Analyzer, TopLevelStatementsExt,
+        WorkspaceAnalyzer,
     },
-    common::{
-        builtins::{BUILTINS, DEFINED},
-        utils::is_exported,
-    },
+    common::builtins::{BUILTINS, DEFINED},
     parser::{Expr, Identifier, LValue, PrimaryExpr},
 };
 
-fn builtin_scope() -> &'static Arc<VariableMap<'static, 'static>> {
-    static SCOPE: OnceLock<Arc<VariableMap<'static, 'static>>> = OnceLock::new();
-    SCOPE.get_or_init(|| {
-        let mut scope = VariableMap::new();
-        for keyword in ["true", "false"] {
-            scope.insert(keyword, Variable::new(false));
-        }
-        for symbol in BUILTINS.all() {
-            scope.insert(symbol.name, Variable::new(false));
-        }
-        Arc::new(scope)
-    })
+fn builtin_scope() -> HashSet<String> {
+    static SCOPE: OnceLock<HashSet<String>> = OnceLock::new();
+    SCOPE
+        .get_or_init(|| {
+            let mut scope = HashSet::new();
+            for keyword in ["true", "false"] {
+                scope.insert(keyword.to_string());
+            }
+            for symbol in BUILTINS.all() {
+                scope.insert(symbol.name.to_string());
+            }
+            scope
+        })
+        .clone()
 }
 
 #[derive(Clone)]
-enum VariablesTracker<'i, 'p> {
-    Ok(VariableMap<'i, 'p>),
+enum EnvironmentTracker {
+    Ok(HashSet<String>),
     Untrackable,
 }
 
-impl<'i, 'p> VariablesTracker<'i, 'p> {
+impl EnvironmentTracker {
     pub fn new() -> Self {
-        Self::Ok(builtin_scope().as_ref().clone())
+        Self::Ok(builtin_scope())
     }
 
     pub fn may_contain(&self, name: &str) -> bool {
         match self {
-            VariablesTracker::Ok(env) => env.contains_key(name),
-            VariablesTracker::Untrackable => true,
+            EnvironmentTracker::Ok(env) => env.contains(name),
+            EnvironmentTracker::Untrackable => true,
         }
     }
 
-    pub fn insert(&mut self, name: &'i str) {
+    pub fn insert(&mut self, name: &str) {
         match self {
-            VariablesTracker::Ok(env) => {
-                env.insert(name, Variable::new(false));
+            EnvironmentTracker::Ok(env) => {
+                env.insert(name.to_string());
             }
-            VariablesTracker::Untrackable => {}
+            EnvironmentTracker::Untrackable => {}
         }
     }
 
     pub fn set_untrackable(&mut self) {
-        *self = VariablesTracker::Untrackable;
+        *self = EnvironmentTracker::Untrackable;
     }
 }
 
-impl<'i, 'p> Extend<(&'i str, Variable<'i, 'p>)> for VariablesTracker<'i, 'p> {
-    fn extend<T: IntoIterator<Item = (&'i str, Variable<'i, 'p>)>>(&mut self, iter: T) {
+impl<'s> Extend<&'s str> for EnvironmentTracker {
+    fn extend<T: IntoIterator<Item = &'s str>>(&mut self, iter: T) {
         match self {
-            VariablesTracker::Ok(env) => env.extend(iter),
-            VariablesTracker::Untrackable => {}
+            EnvironmentTracker::Ok(env) => env.extend(iter.into_iter().map(|s| s.to_string())),
+            EnvironmentTracker::Untrackable => {}
         }
     }
 }
 
-impl<'i> Identifier<'i> {
+impl<'p> Identifier<'p> {
     fn collect_undefined_identifiers(
         &self,
-        file: &'i AnalyzedFile,
-        tracker: &VariablesTracker<'i, '_>,
+        file: &'p AnalyzedFile,
+        tracker: &EnvironmentTracker,
         diagnostics: &mut Vec<Diagnostic>,
     ) {
         if !tracker.may_contain(self.name) {
@@ -105,13 +101,13 @@ impl<'i> Identifier<'i> {
     }
 }
 
-impl<'i> PrimaryExpr<'i> {
+impl<'p> PrimaryExpr<'p> {
     fn collect_undefined_identifiers(
         &self,
-        file: &'i AnalyzedFile,
+        file: &'p AnalyzedFile,
         analyzer: &mut WorkspaceAnalyzer,
         request_time: Instant,
-        tracker: &VariablesTracker<'i, '_>,
+        tracker: &EnvironmentTracker,
         diagnostics: &mut Vec<Diagnostic>,
     ) {
         match self {
@@ -178,13 +174,13 @@ impl<'i> PrimaryExpr<'i> {
     }
 }
 
-impl<'i> Expr<'i> {
+impl<'p> Expr<'p> {
     fn collect_undefined_identifiers(
         &self,
-        file: &'i AnalyzedFile,
+        file: &'p AnalyzedFile,
         analyzer: &mut WorkspaceAnalyzer,
         request_time: Instant,
-        tracker: &VariablesTracker<'i, '_>,
+        tracker: &EnvironmentTracker,
         diagnostics: &mut Vec<Diagnostic>,
     ) {
         match self {
@@ -226,13 +222,13 @@ impl<'i> Expr<'i> {
     }
 }
 
-impl<'i, 'p> AnalyzedBlock<'i, 'p> {
+impl<'p> AnalyzedBlock<'p> {
     fn collect_undefined_identifiers(
         &self,
         file: &AnalyzedFile,
         analyzer: &mut WorkspaceAnalyzer,
         request_time: Instant,
-        tracker: &mut VariablesTracker<'i, 'p>,
+        tracker: &mut EnvironmentTracker,
         diagnostics: &mut Vec<Diagnostic>,
     ) {
         for statement in self.top_level_statements() {
@@ -371,12 +367,7 @@ impl<'i, 'p> AnalyzedBlock<'i, 'p> {
                 }
                 AnalyzedStatement::Import(import) => {
                     let imported_environment = analyzer.analyze_files(&import.path, request_time);
-                    tracker.extend(
-                        imported_environment
-                            .variables
-                            .into_iter()
-                            .filter(|(name, _)| is_exported(name)),
-                    );
+                    tracker.extend(imported_environment.get().variables.keys().copied());
                 }
                 AnalyzedStatement::Conditions(_)
                 | AnalyzedStatement::DeclareArgs(_)
@@ -399,13 +390,13 @@ pub fn collect_undefined_identifiers(
     let mut analyzer = analyzer.lock().unwrap();
 
     // Process BUILDCONFIG.gn.
-    let mut tracker = VariablesTracker::new();
+    let mut tracker = EnvironmentTracker::new();
     let build_config = analyzer.context().build_config.clone();
     let environment = analyzer.analyze_files(&build_config, request_time);
-    tracker.extend(environment.variables.clone());
+    tracker.extend(environment.get().variables.keys().copied());
 
     let mut diagnostics: Vec<Diagnostic> = Vec::new();
-    file.analyzed_root.collect_undefined_identifiers(
+    file.analyzed_root.get().collect_undefined_identifiers(
         file,
         &mut analyzer,
         request_time,

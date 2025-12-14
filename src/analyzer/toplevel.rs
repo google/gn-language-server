@@ -27,23 +27,23 @@ pub trait TopLevelStatementsExt {
     fn top_level_statements(self) -> Self::IntoIter;
 }
 
-impl<'i, 'p> TopLevelStatementsExt for &'p Block<'i> {
-    type Item = &'p Statement<'i>;
-    type IntoIter = TopLevelStatements<'i, 'p>;
+impl<'p> TopLevelStatementsExt for &'p Block<'p> {
+    type Item = &'p Statement<'p>;
+    type IntoIter = TopLevelStatements<'p>;
 
     fn top_level_statements(self) -> Self::IntoIter {
         TopLevelStatements::new(&self.statements)
     }
 }
 
-pub struct TopLevelStatements<'i, 'p> {
-    stack: Vec<&'p Statement<'i>>,
+pub struct TopLevelStatements<'p> {
+    stack: Vec<&'p Statement<'p>>,
 }
 
-impl<'i, 'p> TopLevelStatements<'i, 'p> {
-    pub fn new<I>(events: impl IntoIterator<Item = &'p Statement<'i>, IntoIter = I>) -> Self
+impl<'p> TopLevelStatements<'p> {
+    pub fn new<I>(events: impl IntoIterator<Item = &'p Statement<'p>, IntoIter = I>) -> Self
     where
-        I: DoubleEndedIterator<Item = &'p Statement<'i>>,
+        I: DoubleEndedIterator<Item = &'p Statement<'p>>,
     {
         TopLevelStatements {
             stack: events.into_iter().rev().collect(),
@@ -51,8 +51,8 @@ impl<'i, 'p> TopLevelStatements<'i, 'p> {
     }
 }
 
-impl<'i, 'p> Iterator for TopLevelStatements<'i, 'p> {
-    type Item = &'p Statement<'i>;
+impl<'p> Iterator for TopLevelStatements<'p> {
+    type Item = &'p Statement<'p>;
 
     fn next(&mut self) -> Option<Self::Item> {
         let statement = self.stack.pop()?;
@@ -87,25 +87,23 @@ impl<'i, 'p> Iterator for TopLevelStatements<'i, 'p> {
     }
 }
 
-impl<'i, 'p, 'a> TopLevelStatementsExt for &'a AnalyzedBlock<'i, 'p> {
-    type Item = &'a AnalyzedStatement<'i, 'p>;
-    type IntoIter = AnalyzedTopLevelStatements<'i, 'p, 'a>;
+impl<'p, 'a> TopLevelStatementsExt for &'a AnalyzedBlock<'p> {
+    type Item = &'a AnalyzedStatement<'p>;
+    type IntoIter = AnalyzedTopLevelStatements<'p, 'a>;
 
     fn top_level_statements(self) -> Self::IntoIter {
         AnalyzedTopLevelStatements::new(&self.statements)
     }
 }
 
-pub struct AnalyzedTopLevelStatements<'i, 'p, 'a> {
-    stack: Vec<&'a AnalyzedStatement<'i, 'p>>,
+pub struct AnalyzedTopLevelStatements<'p, 'a> {
+    stack: Vec<&'a AnalyzedStatement<'p>>,
 }
 
-impl<'i, 'p, 'a> AnalyzedTopLevelStatements<'i, 'p, 'a> {
-    pub fn new<I>(
-        events: impl IntoIterator<Item = &'a AnalyzedStatement<'i, 'p>, IntoIter = I>,
-    ) -> Self
+impl<'p, 'a> AnalyzedTopLevelStatements<'p, 'a> {
+    pub fn new<I>(events: impl IntoIterator<Item = &'a AnalyzedStatement<'p>, IntoIter = I>) -> Self
     where
-        I: DoubleEndedIterator<Item = &'a AnalyzedStatement<'i, 'p>>,
+        I: DoubleEndedIterator<Item = &'a AnalyzedStatement<'p>>,
     {
         AnalyzedTopLevelStatements {
             stack: events.into_iter().rev().collect(),
@@ -113,8 +111,8 @@ impl<'i, 'p, 'a> AnalyzedTopLevelStatements<'i, 'p, 'a> {
     }
 }
 
-impl<'i, 'p, 'a> Iterator for AnalyzedTopLevelStatements<'i, 'p, 'a> {
-    type Item = &'a AnalyzedStatement<'i, 'p>;
+impl<'p, 'a> Iterator for AnalyzedTopLevelStatements<'p, 'a> {
+    type Item = &'a AnalyzedStatement<'p>;
 
     fn next(&mut self) -> Option<Self::Item> {
         let statement = self.stack.pop()?;

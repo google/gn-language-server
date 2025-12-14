@@ -45,7 +45,7 @@ pub async fn hover(context: &RequestContext, params: HoverParams) -> Result<Opti
     let mut sections: Vec<Vec<MarkedString>> = Vec::new();
 
     // Check templates.
-    if let Some(template) = environment.templates.get(ident.name) {
+    if let Some(template) = environment.get().templates.get(ident.name) {
         sections.push(
             template
                 .format_help(&current_file.workspace_root)
@@ -56,7 +56,7 @@ pub async fn hover(context: &RequestContext, params: HoverParams) -> Result<Opti
     }
 
     // Check variables.
-    if let Some(variable) = environment.variables.get(ident.name) {
+    if let Some(variable) = environment.get().variables.get(ident.name) {
         sections.push(
             variable
                 .format_help(&current_file.workspace_root)

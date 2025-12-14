@@ -77,7 +77,7 @@ pub async fn code_lens(
     let path = get_text_document_path(&params.text_document)?;
     let current_file = context.analyzer.analyze_file(&path, context.request_time)?;
 
-    let targets: Vec<_> = current_file.analyzed_root.targets().collect();
+    let targets: Vec<_> = current_file.analyzed_root.get().targets().collect();
 
     let mut lens: Vec<CodeLens> = Vec::new();
 

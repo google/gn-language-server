@@ -39,7 +39,8 @@ pub async fn document_link(
     let current_file = context.analyzer.analyze_file(&path, context.request_time)?;
 
     let links = current_file
-        .links_map
+        .link_index
+        .get()
         .values()
         .flatten()
         .map(|link| match link {

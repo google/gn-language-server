@@ -30,8 +30,7 @@ pub fn compute_diagnostics(
     undefined_variable_analysis: bool,
     request_time: Instant,
 ) -> Vec<Diagnostic> {
-    let mut diagnostics =
-        collect_syntax_errors(file.analyzed_root.block, file.analyzed_root.document);
+    let mut diagnostics = collect_syntax_errors(file.ast.get(), &file.document);
     if undefined_variable_analysis {
         diagnostics.extend(collect_undefined_identifiers(file, analyzer, request_time));
     }

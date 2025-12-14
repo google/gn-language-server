@@ -74,7 +74,7 @@ fn extract_symbols(file: &AnalyzedFile, query: &str) -> Vec<SymbolInformation> {
     let mut symbols = Vec::new();
     let uri = Url::from_file_path(&file.document.path).unwrap();
 
-    for (name, variable) in file.exports.variables.as_ref() {
+    for (name, variable) in &file.exports.get().variables {
         if !name.to_lowercase().contains(query) {
             continue;
         }
@@ -101,7 +101,7 @@ fn extract_symbols(file: &AnalyzedFile, query: &str) -> Vec<SymbolInformation> {
         }
     }
 
-    for (name, template) in file.exports.templates.as_ref() {
+    for (name, template) in &file.exports.get().templates {
         if !name.to_lowercase().contains(query) {
             continue;
         }

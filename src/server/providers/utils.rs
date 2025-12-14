@@ -32,19 +32,21 @@ pub fn get_text_document_path(text_document: &TextDocumentIdentifier) -> Result<
 
 pub fn lookup_identifier_at(file: &AnalyzedFile, pos: usize) -> Option<&Identifier<'_>> {
     file.ast
+        .get()
         .identifiers()
         .find(|ident| ident.span.start() <= pos && pos <= ident.span.end())
 }
 
-pub fn lookup_target_name_string_at(file: &AnalyzedFile, pos: usize) -> Option<Target<'_, '_>> {
-    file.analyzed_root.targets().find(|target| {
+pub fn lookup_target_name_string_at(file: &AnalyzedFile, pos: usize) -> Option<Target<'_>> {
+    file.analyzed_root.get().targets().find(|target| {
         target.call.args[0].span().start() <= pos && pos <= target.call.args[0].span().end()
     })
 }
 
-pub fn find_target<'a>(file: &'a AnalyzedFile, name: &str) -> Option<&'a Target<'static, 'static>> {
+pub fn find_target<'a>(file: &'a AnalyzedFile, name: &str) -> Option<&'a Target<'a>> {
     let targets: Vec<_> = file
         .exports
+        .get()
         .targets
         .values()
         .sorted_by_key(|target| (&target.document.path, target.call.span.start()))

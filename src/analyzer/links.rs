@@ -12,13 +12,13 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use std::{
-    collections::HashMap,
-    path::{Path, PathBuf},
-};
+use std::path::{Path, PathBuf};
 
 use crate::{
-    analyzer::{data::AnalyzedLink, WorkspaceContext},
+    analyzer::{
+        data::{AnalyzedLink, LinkIndex},
+        WorkspaceContext,
+    },
     common::utils::parse_simple_literal,
     parser::{Block, Node},
 };
@@ -54,7 +54,7 @@ pub fn collect_links<'i>(
     ast: &Block<'i>,
     path: &Path,
     workspace: &WorkspaceContext,
-) -> HashMap<PathBuf, Vec<AnalyzedLink<'i>>> {
+) -> LinkIndex<'i> {
     let links = ast.strings().filter_map(|string| {
         let content = parse_simple_literal(string.raw_value)?;
         if !content.contains(":") && content.contains(".") {
@@ -75,13 +75,13 @@ pub fn collect_links<'i>(
         None
     });
 
-    let mut links_map: HashMap<PathBuf, Vec<AnalyzedLink>> = HashMap::new();
+    let mut link_index = LinkIndex::new();
     for link in links {
-        links_map
+        link_index
             .entry(link.path().to_path_buf())
             .or_default()
             .push(link);
     }
 
-    links_map
+    link_index
 }

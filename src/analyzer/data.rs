@@ -15,13 +15,13 @@
 use std::{
     collections::HashMap,
     path::{Path, PathBuf},
-    pin::Pin,
     sync::Arc,
     time::Instant,
 };
 
 use either::Either;
 use pest::Span;
+use self_cell::self_cell;
 use tower_lsp::lsp_types::{DocumentSymbol, Url};
 
 use crate::{
@@ -32,7 +32,7 @@ use crate::{
         utils::{format_path, parse_simple_literal},
         workspace::find_nearest_workspace_root,
     },
-    parser::{Assignment, Block, Call, Comments, Condition, Expr, Identifier, Node},
+    parser::{Assignment, Call, Comments, Condition, Expr, Identifier, Node, OwnedBlock},
 };
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -48,64 +48,106 @@ impl WorkspaceContext {
     }
 }
 
-pub type StrKeyedMap<'i, T> = HashMap<&'i str, T>;
-pub type VariableMap<'i, 'p> = StrKeyedMap<'i, Variable<'i, 'p>>;
-pub type TemplateMap<'i, 'p> = StrKeyedMap<'i, Template<'i, 'p>>;
-pub type TargetMap<'i, 'p> = StrKeyedMap<'i, Target<'i, 'p>>;
+pub type StrKeyedMap<'p, T> = HashMap<&'p str, T>;
+pub type VariableMap<'p> = StrKeyedMap<'p, Variable<'p>>;
+pub type TemplateMap<'p> = StrKeyedMap<'p, Template<'p>>;
+pub type TargetMap<'p> = StrKeyedMap<'p, Target<'p>>;
 
 #[derive(Default)]
-pub struct MutableFileExports<'i, 'p> {
-    pub variables: VariableMap<'i, 'p>,
-    pub templates: TemplateMap<'i, 'p>,
-    pub targets: TargetMap<'i, 'p>,
+pub struct MutableFileExports<'p> {
+    pub variables: VariableMap<'p>,
+    pub templates: TemplateMap<'p>,
+    pub targets: TargetMap<'p>,
     pub children: Vec<PathBuf>,
 }
 
-impl MutableFileExports<'_, '_> {
+impl MutableFileExports<'_> {
     pub fn new() -> Self {
         Default::default()
     }
 }
 
-impl<'i, 'p> MutableFileExports<'i, 'p> {
-    pub fn finalize(self) -> FileExports<'i, 'p> {
+impl<'p> MutableFileExports<'p> {
+    pub fn finalize(self) -> FileExports<'p> {
         FileExports {
-            variables: Arc::new(self.variables),
-            templates: Arc::new(self.templates),
-            targets: Arc::new(self.targets),
-            children: Arc::new(self.children),
+            variables: self.variables,
+            templates: self.templates,
+            targets: self.targets,
+            children: self.children,
         }
     }
 }
 
 #[derive(Default)]
-pub struct FileExports<'i, 'p> {
-    pub variables: Arc<VariableMap<'i, 'p>>,
-    pub templates: Arc<TemplateMap<'i, 'p>>,
-    pub targets: Arc<TargetMap<'i, 'p>>,
-    pub children: Arc<Vec<PathBuf>>,
+pub struct FileExports<'p> {
+    pub variables: VariableMap<'p>,
+    pub templates: TemplateMap<'p>,
+    pub targets: TargetMap<'p>,
+    pub children: Vec<PathBuf>,
+}
+
+self_cell!(
+    struct FileExportsSelfCell {
+        owner: OwnedBlock,
+        #[covariant]
+        dependent: FileExports,
+    }
+);
+
+pub struct OwnedFileExports(FileExportsSelfCell);
+
+impl OwnedFileExports {
+    pub fn new(block: OwnedBlock, builder: impl FnOnce(&OwnedBlock) -> FileExports<'_>) -> Self {
+        Self(FileExportsSelfCell::new(block, builder))
+    }
+
+    pub fn get(&self) -> &FileExports<'_> {
+        self.0.borrow_dependent()
+    }
 }
 
 #[derive(Default)]
-pub struct Environment {
-    pub variables: VariableMap<'static, 'static>,
-    pub templates: TemplateMap<'static, 'static>,
-    pub files: Vec<Pin<Arc<AnalyzedFile>>>,
+pub struct Environment<'a> {
+    pub variables: VariableMap<'a>,
+    pub templates: TemplateMap<'a>,
 }
 
-impl Environment {
+impl Environment<'_> {
     pub fn new() -> Self {
         Default::default()
     }
 }
 
+self_cell!(
+    struct EnvironmentSelfCell {
+        owner: Vec<Arc<AnalyzedFile>>,
+        #[covariant]
+        dependent: Environment,
+    }
+);
+
+pub struct OwnedEnvironment(EnvironmentSelfCell);
+
+impl OwnedEnvironment {
+    pub fn new(
+        files: Vec<Arc<AnalyzedFile>>,
+        builder: impl FnOnce(&Vec<Arc<AnalyzedFile>>) -> Environment<'_>,
+    ) -> Self {
+        Self(EnvironmentSelfCell::new(files, builder))
+    }
+
+    pub fn get(&self) -> &Environment<'_> {
+        self.0.borrow_dependent()
+    }
+}
+
 pub struct AnalyzedFile {
-    pub document: Pin<Arc<Document>>,
+    pub document: Arc<Document>,
     pub workspace_root: PathBuf,
-    pub ast: Pin<Box<Block<'static>>>,
-    pub analyzed_root: AnalyzedBlock<'static, 'static>,
-    pub exports: FileExports<'static, 'static>,
-    pub links_map: HashMap<PathBuf, Vec<AnalyzedLink<'static>>>,
+    pub ast: OwnedBlock,
+    pub analyzed_root: OwnedAnalyzedBlock,
+    pub exports: OwnedFileExports,
+    pub link_index: OwnedLinkIndex,
     pub symbols: Vec<DocumentSymbol>,
     pub external: bool,
     pub key: Arc<CacheKey>,
@@ -114,57 +156,77 @@ pub struct AnalyzedFile {
 impl AnalyzedFile {
     #[allow(clippy::too_many_arguments)]
     pub fn new(
-        document: Pin<Arc<Document>>,
+        document: Arc<Document>,
         workspace_root: PathBuf,
-        ast: Pin<Box<Block<'static>>>,
-        analyzed_root: AnalyzedBlock<'static, 'static>,
-        exports: FileExports<'static, 'static>,
-        links_map: HashMap<PathBuf, Vec<AnalyzedLink<'static>>>,
+        ast: OwnedBlock,
+        analyzed_root: OwnedAnalyzedBlock,
+        exports: OwnedFileExports,
+        link_index: OwnedLinkIndex,
         symbols: Vec<DocumentSymbol>,
         request_time: Instant,
-    ) -> Pin<Arc<Self>> {
+    ) -> Self {
         let external =
             find_nearest_workspace_root(&document.path).is_none_or(|path| path != workspace_root);
         let key = CacheKey::new(document.path.clone(), document.version, request_time);
-        Arc::pin(Self {
+        Self {
             document,
             workspace_root,
             ast,
             analyzed_root,
             exports,
-            links_map,
+            link_index,
             symbols,
             external,
             key,
-        })
+        }
     }
 
-    pub fn local_variables_at(&self, pos: usize) -> VariableMap<'_, '_> {
-        self.analyzed_root.local_variables_at(pos)
+    pub fn local_variables_at(&self, pos: usize) -> VariableMap<'_> {
+        self.analyzed_root.get().local_variables_at(pos)
     }
 
-    pub fn local_templates_at(&self, pos: usize) -> TemplateMap<'_, '_> {
-        self.analyzed_root.local_templates_at(pos)
+    pub fn local_templates_at(&self, pos: usize) -> TemplateMap<'_> {
+        self.analyzed_root.get().local_templates_at(pos)
+    }
+}
+
+self_cell!(
+    struct AnalyzedBlockSelfCell {
+        owner: OwnedBlock,
+        #[covariant]
+        dependent: AnalyzedBlock,
+    }
+);
+
+#[derive(Clone)]
+pub struct OwnedAnalyzedBlock(Arc<AnalyzedBlockSelfCell>);
+
+impl OwnedAnalyzedBlock {
+    pub fn new(block: OwnedBlock, builder: impl FnOnce(&OwnedBlock) -> AnalyzedBlock<'_>) -> Self {
+        Self(Arc::new(AnalyzedBlockSelfCell::new(block, builder)))
+    }
+
+    pub fn get(&self) -> &AnalyzedBlock<'_> {
+        self.0.borrow_dependent()
     }
 }
 
 #[derive(Clone)]
-pub struct AnalyzedBlock<'i, 'p> {
-    pub statements: Vec<AnalyzedStatement<'i, 'p>>,
-    pub block: &'p Block<'i>,
-    pub document: &'i Document,
-    pub span: Span<'i>,
+pub struct AnalyzedBlock<'p> {
+    pub statements: Vec<AnalyzedStatement<'p>>,
+    pub document: &'p Document,
+    pub span: Span<'p>,
 }
 
-impl<'i, 'p> AnalyzedBlock<'i, 'p> {
-    pub fn targets<'a>(&'a self) -> impl Iterator<Item = Target<'i, 'p>> + 'a {
+impl<'p> AnalyzedBlock<'p> {
+    pub fn targets<'a>(&'a self) -> impl Iterator<Item = Target<'p>> + 'a {
         self.top_level_statements().filter_map(|event| match event {
             AnalyzedStatement::Target(target) => target.as_target(self.document),
             _ => None,
         })
     }
 
-    pub fn local_variables_at(&self, pos: usize) -> VariableMap<'i, 'p> {
+    pub fn local_variables_at(&self, pos: usize) -> VariableMap<'p> {
         let mut variables = VariableMap::new();
 
         // First pass: Collect all variables in the scope.
@@ -226,7 +288,7 @@ impl<'i, 'p> AnalyzedBlock<'i, 'p> {
         variables
     }
 
-    pub fn local_templates_at(&self, pos: usize) -> TemplateMap<'i, 'p> {
+    pub fn local_templates_at(&self, pos: usize) -> TemplateMap<'p> {
         let mut templates = TemplateMap::new();
 
         // First pass: Collect all templates in the scope.
@@ -263,20 +325,20 @@ impl<'i, 'p> AnalyzedBlock<'i, 'p> {
 }
 
 #[derive(Clone)]
-pub enum AnalyzedStatement<'i, 'p> {
-    Assignment(Box<AnalyzedAssignment<'i, 'p>>),
-    Conditions(Box<AnalyzedCondition<'i, 'p>>),
-    DeclareArgs(Box<AnalyzedDeclareArgs<'i, 'p>>),
-    Foreach(Box<AnalyzedForeach<'i, 'p>>),
-    ForwardVariablesFrom(Box<AnalyzedForwardVariablesFrom<'i, 'p>>),
-    Import(Box<AnalyzedImport<'i, 'p>>),
-    Target(Box<AnalyzedTarget<'i, 'p>>),
-    Template(Box<AnalyzedTemplate<'i, 'p>>),
-    BuiltinCall(Box<AnalyzedBuiltinCall<'i, 'p>>),
+pub enum AnalyzedStatement<'p> {
+    Assignment(Box<AnalyzedAssignment<'p>>),
+    Conditions(Box<AnalyzedCondition<'p>>),
+    DeclareArgs(Box<AnalyzedDeclareArgs<'p>>),
+    Foreach(Box<AnalyzedForeach<'p>>),
+    ForwardVariablesFrom(Box<AnalyzedForwardVariablesFrom<'p>>),
+    Import(Box<AnalyzedImport<'p>>),
+    Target(Box<AnalyzedTarget<'p>>),
+    Template(Box<AnalyzedTemplate<'p>>),
+    BuiltinCall(Box<AnalyzedBuiltinCall<'p>>),
 }
 
-impl<'i, 'p> AnalyzedStatement<'i, 'p> {
-    pub fn span(&self) -> Span<'i> {
+impl<'p> AnalyzedStatement<'p> {
+    pub fn span(&self) -> Span<'p> {
         match self {
             AnalyzedStatement::Assignment(assignment) => assignment.assignment.span,
             AnalyzedStatement::Conditions(condition) => condition.condition.span,
@@ -292,7 +354,7 @@ impl<'i, 'p> AnalyzedStatement<'i, 'p> {
         }
     }
 
-    pub fn body_scope(&self) -> Option<&AnalyzedBlock<'i, 'p>> {
+    pub fn body_scope(&self) -> Option<&AnalyzedBlock<'p>> {
         match self {
             AnalyzedStatement::Target(target) => Some(&target.body_block),
             AnalyzedStatement::Template(template) => Some(&template.body_block),
@@ -306,7 +368,7 @@ impl<'i, 'p> AnalyzedStatement<'i, 'p> {
         }
     }
 
-    pub fn expr_scopes(&self) -> impl IntoIterator<Item = &AnalyzedBlock<'i, 'p>> {
+    pub fn expr_scopes(&self) -> impl IntoIterator<Item = &AnalyzedBlock<'p>> {
         match self {
             AnalyzedStatement::Assignment(assignment) => {
                 Either::Left(assignment.expr_scopes.as_slice())
@@ -342,88 +404,88 @@ impl<'i, 'p> AnalyzedStatement<'i, 'p> {
         .into_iter()
     }
 
-    pub fn subscopes(&self) -> impl Iterator<Item = &AnalyzedBlock<'i, 'p>> {
+    pub fn subscopes(&self) -> impl Iterator<Item = &AnalyzedBlock<'p>> {
         self.body_scope().into_iter().chain(self.expr_scopes())
     }
 }
 
 #[derive(Clone)]
-pub struct AnalyzedAssignment<'i, 'p> {
-    pub assignment: &'p Assignment<'i>,
-    pub primary_variable: Span<'i>,
-    pub comments: Comments<'i>,
-    pub expr_scopes: Vec<AnalyzedBlock<'i, 'p>>,
+pub struct AnalyzedAssignment<'p> {
+    pub assignment: &'p Assignment<'p>,
+    pub primary_variable: Span<'p>,
+    pub comments: Comments<'p>,
+    pub expr_scopes: Vec<AnalyzedBlock<'p>>,
 }
 
 #[derive(Clone)]
-pub struct AnalyzedCondition<'i, 'p> {
-    pub condition: &'p Condition<'i>,
-    pub expr_scopes: Vec<AnalyzedBlock<'i, 'p>>,
-    pub then_block: AnalyzedBlock<'i, 'p>,
-    pub else_block: Option<Either<Box<AnalyzedCondition<'i, 'p>>, Box<AnalyzedBlock<'i, 'p>>>>,
+pub struct AnalyzedCondition<'p> {
+    pub condition: &'p Condition<'p>,
+    pub expr_scopes: Vec<AnalyzedBlock<'p>>,
+    pub then_block: AnalyzedBlock<'p>,
+    pub else_block: Option<Either<Box<AnalyzedCondition<'p>>, Box<AnalyzedBlock<'p>>>>,
 }
 
 #[derive(Clone)]
-pub struct AnalyzedDeclareArgs<'i, 'p> {
-    pub call: &'p Call<'i>,
-    pub body_block: AnalyzedBlock<'i, 'p>,
+pub struct AnalyzedDeclareArgs<'p> {
+    pub call: &'p Call<'p>,
+    pub body_block: AnalyzedBlock<'p>,
 }
 
 #[derive(Clone)]
-pub struct AnalyzedForeach<'i, 'p> {
-    pub call: &'p Call<'i>,
-    pub loop_variable: &'p Identifier<'i>,
-    pub loop_items: &'p Expr<'i>,
-    pub expr_scopes: Vec<AnalyzedBlock<'i, 'p>>,
-    pub body_block: AnalyzedBlock<'i, 'p>,
+pub struct AnalyzedForeach<'p> {
+    pub call: &'p Call<'p>,
+    pub loop_variable: &'p Identifier<'p>,
+    pub loop_items: &'p Expr<'p>,
+    pub expr_scopes: Vec<AnalyzedBlock<'p>>,
+    pub body_block: AnalyzedBlock<'p>,
 }
 
 #[derive(Clone)]
-pub struct AnalyzedForwardVariablesFrom<'i, 'p> {
-    pub call: &'p Call<'i>,
-    pub includes: &'p Expr<'i>,
-    pub expr_scopes: Vec<AnalyzedBlock<'i, 'p>>,
+pub struct AnalyzedForwardVariablesFrom<'p> {
+    pub call: &'p Call<'p>,
+    pub includes: &'p Expr<'p>,
+    pub expr_scopes: Vec<AnalyzedBlock<'p>>,
 }
 
 #[derive(Clone)]
-pub struct AnalyzedImport<'i, 'p> {
-    pub call: &'p Call<'i>,
+pub struct AnalyzedImport<'p> {
+    pub call: &'p Call<'p>,
     pub path: PathBuf,
 }
 
 #[derive(Clone)]
-pub struct AnalyzedTarget<'i, 'p> {
-    pub call: &'p Call<'i>,
-    pub name: &'p Expr<'i>,
-    pub expr_scopes: Vec<AnalyzedBlock<'i, 'p>>,
-    pub body_block: AnalyzedBlock<'i, 'p>,
+pub struct AnalyzedTarget<'p> {
+    pub call: &'p Call<'p>,
+    pub name: &'p Expr<'p>,
+    pub expr_scopes: Vec<AnalyzedBlock<'p>>,
+    pub body_block: AnalyzedBlock<'p>,
 }
 
 #[derive(Clone)]
-pub struct AnalyzedTemplate<'i, 'p> {
-    pub call: &'p Call<'i>,
-    pub name: &'p Expr<'i>,
-    pub comments: Comments<'i>,
-    pub expr_scopes: Vec<AnalyzedBlock<'i, 'p>>,
-    pub body_block: AnalyzedBlock<'i, 'p>,
+pub struct AnalyzedTemplate<'p> {
+    pub call: &'p Call<'p>,
+    pub name: &'p Expr<'p>,
+    pub comments: Comments<'p>,
+    pub expr_scopes: Vec<AnalyzedBlock<'p>>,
+    pub body_block: AnalyzedBlock<'p>,
 }
 
 #[derive(Clone)]
-pub struct AnalyzedBuiltinCall<'i, 'p> {
-    pub call: &'p Call<'i>,
-    pub expr_scopes: Vec<AnalyzedBlock<'i, 'p>>,
-    pub body_block: Option<AnalyzedBlock<'i, 'p>>,
+pub struct AnalyzedBuiltinCall<'p> {
+    pub call: &'p Call<'p>,
+    pub expr_scopes: Vec<AnalyzedBlock<'p>>,
+    pub body_block: Option<AnalyzedBlock<'p>>,
 }
 
 #[derive(Clone)]
-pub struct Target<'i, 'p> {
-    pub document: &'i Document,
-    pub call: &'p Call<'i>,
-    pub name: &'i str,
+pub struct Target<'p> {
+    pub document: &'p Document,
+    pub call: &'p Call<'p>,
+    pub name: &'p str,
 }
 
-impl<'i, 'p> AnalyzedTarget<'i, 'p> {
-    pub fn as_target(&self, document: &'i Document) -> Option<Target<'i, 'p>> {
+impl<'p> AnalyzedTarget<'p> {
+    pub fn as_target(&self, document: &'p Document) -> Option<Target<'p>> {
         let name = self.name.as_simple_string()?;
         Some(Target {
             document,
@@ -434,14 +496,14 @@ impl<'i, 'p> AnalyzedTarget<'i, 'p> {
 }
 
 #[derive(Clone)]
-pub struct Template<'i, 'p> {
-    pub document: &'i Document,
-    pub call: &'p Call<'i>,
-    pub name: &'i str,
-    pub comments: Comments<'i>,
+pub struct Template<'p> {
+    pub document: &'p Document,
+    pub call: &'p Call<'p>,
+    pub name: &'p str,
+    pub comments: Comments<'p>,
 }
 
-impl Template<'_, '_> {
+impl Template<'_> {
     pub fn format_help(&self, workspace_root: &Path) -> Vec<String> {
         let mut paragraphs = vec![format!("```gn\ntemplate(\"{}\") {{ ... }}\n```", self.name)];
         if !self.comments.is_empty() {
@@ -468,8 +530,8 @@ impl Template<'_, '_> {
     }
 }
 
-impl<'i, 'p> AnalyzedTemplate<'i, 'p> {
-    pub fn as_template(&self, document: &'i Document) -> Option<Template<'i, 'p>> {
+impl<'p> AnalyzedTemplate<'p> {
+    pub fn as_template(&self, document: &'p Document) -> Option<Template<'p>> {
         let name = self.name.as_simple_string()?;
         Some(Template {
             document,
@@ -481,12 +543,12 @@ impl<'i, 'p> AnalyzedTemplate<'i, 'p> {
 }
 
 #[derive(Clone, Debug)]
-pub struct Variable<'i, 'p> {
-    pub assignments: Vec<VariableAssignment<'i, 'p>>,
+pub struct Variable<'p> {
+    pub assignments: Vec<VariableAssignment<'p>>,
     pub is_args: bool,
 }
 
-impl Variable<'_, '_> {
+impl Variable<'_> {
     pub fn new(is_args: bool) -> Self {
         Self {
             assignments: Vec::new(),
@@ -563,15 +625,15 @@ impl Variable<'_, '_> {
 }
 
 #[derive(Clone, Debug)]
-pub struct VariableAssignment<'i, 'p> {
-    pub document: &'i Document,
-    pub assignment_or_call: Either<&'p Assignment<'i>, &'p Call<'i>>,
-    pub primary_variable: Span<'i>,
-    pub comments: Comments<'i>,
+pub struct VariableAssignment<'p> {
+    pub document: &'p Document,
+    pub assignment_or_call: Either<&'p Assignment<'p>, &'p Call<'p>>,
+    pub primary_variable: Span<'p>,
+    pub comments: Comments<'p>,
 }
 
-impl<'i, 'p> AnalyzedAssignment<'i, 'p> {
-    pub fn as_variable_assignment(&self, document: &'i Document) -> VariableAssignment<'i, 'p> {
+impl<'p> AnalyzedAssignment<'p> {
+    pub fn as_variable_assignment(&self, document: &'p Document) -> VariableAssignment<'p> {
         VariableAssignment {
             document,
             assignment_or_call: Either::Left(self.assignment),
@@ -581,8 +643,8 @@ impl<'i, 'p> AnalyzedAssignment<'i, 'p> {
     }
 }
 
-impl<'i, 'p> AnalyzedForeach<'i, 'p> {
-    pub fn as_variable_assignment(&self, document: &'i Document) -> VariableAssignment<'i, 'p> {
+impl<'p> AnalyzedForeach<'p> {
+    pub fn as_variable_assignment(&self, document: &'p Document) -> VariableAssignment<'p> {
         VariableAssignment {
             document,
             assignment_or_call: Either::Right(self.call),
@@ -592,11 +654,8 @@ impl<'i, 'p> AnalyzedForeach<'i, 'p> {
     }
 }
 
-impl<'i, 'p> AnalyzedForwardVariablesFrom<'i, 'p> {
-    pub fn as_variable_assignment(
-        &self,
-        document: &'i Document,
-    ) -> Vec<VariableAssignment<'i, 'p>> {
+impl<'p> AnalyzedForwardVariablesFrom<'p> {
+    pub fn as_variable_assignment(&self, document: &'p Document) -> Vec<VariableAssignment<'p>> {
         // TODO: Handle excludes.
         let Some(strings) = self.includes.as_primary_list().map(|list| {
             list.values
@@ -629,18 +688,18 @@ impl<'i, 'p> AnalyzedForwardVariablesFrom<'i, 'p> {
 }
 
 #[derive(Clone, Eq, PartialEq)]
-pub enum AnalyzedLink<'i> {
+pub enum AnalyzedLink<'p> {
     /// Link to a file. No range is specified.
-    File { path: PathBuf, span: Span<'i> },
+    File { path: PathBuf, span: Span<'p> },
     /// Link to a target defined in a BUILD.gn file.
     Target {
         path: PathBuf,
-        name: &'i str,
-        span: Span<'i>,
+        name: &'p str,
+        span: Span<'p>,
     },
 }
 
-impl<'i> AnalyzedLink<'i> {
+impl<'p> AnalyzedLink<'p> {
     pub fn path(&self) -> &Path {
         match self {
             AnalyzedLink::File { path, .. } => path,
@@ -648,10 +707,32 @@ impl<'i> AnalyzedLink<'i> {
         }
     }
 
-    pub fn span(&self) -> Span<'i> {
+    pub fn span(&self) -> Span<'p> {
         match self {
             AnalyzedLink::File { span, .. } => *span,
             AnalyzedLink::Target { span, .. } => *span,
         }
+    }
+}
+
+pub type LinkIndex<'p> = HashMap<PathBuf, Vec<AnalyzedLink<'p>>>;
+
+self_cell!(
+    struct LinkIndexSelfCell {
+        owner: OwnedBlock,
+        #[covariant]
+        dependent: LinkIndex,
+    }
+);
+
+pub struct OwnedLinkIndex(LinkIndexSelfCell);
+
+impl OwnedLinkIndex {
+    pub fn new(block: OwnedBlock, builder: impl FnOnce(&OwnedBlock) -> LinkIndex<'_>) -> Self {
+        Self(LinkIndexSelfCell::new(block, builder))
+    }
+
+    pub fn get(&self) -> &LinkIndex<'_> {
+        self.0.borrow_dependent()
     }
 }

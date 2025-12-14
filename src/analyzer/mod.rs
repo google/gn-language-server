@@ -13,9 +13,8 @@
 // limitations under the License.
 
 use std::{
-    collections::{BTreeMap, HashMap, HashSet},
+    collections::{BTreeMap, HashSet},
     path::{Path, PathBuf},
-    pin::Pin,
     sync::{Arc, Mutex, RwLock},
     time::Instant,
 };
@@ -23,16 +22,7 @@ use std::{
 use either::Either;
 
 use crate::{
-    analyzer::{
-        data::{
-            AnalyzedBuiltinCall, AnalyzedCondition, AnalyzedDeclareArgs, AnalyzedForeach,
-            AnalyzedForwardVariablesFrom, FileExports, MutableFileExports, TemplateMap,
-            VariableAssignment, WorkspaceContext,
-        },
-        dotgn::evaluate_dot_gn,
-        links::collect_links,
-        symbols::collect_symbols,
-    },
+    analyzer::{dotgn::evaluate_dot_gn, links::collect_links, symbols::collect_symbols},
     common::{
         builtins::{DECLARE_ARGS, FOREACH, FORWARD_VARIABLES_FROM, IMPORT, SET_DEFAULTS, TEMPLATE},
         error::{Error, Result},
@@ -40,13 +30,18 @@ use crate::{
         utils::{is_exported, parse_simple_literal},
         workspace::WorkspaceFinder,
     },
-    parser::{parse, Block, Call, Comments, Condition, Expr, LValue, Node, PrimaryExpr, Statement},
+    parser::{
+        parse, Block, Call, Comments, Condition, Expr, LValue, Node, OwnedBlock, PrimaryExpr,
+        Statement,
+    },
 };
 
 pub use data::{
-    AnalyzedAssignment, AnalyzedBlock, AnalyzedFile, AnalyzedImport, AnalyzedLink,
-    AnalyzedStatement, AnalyzedTarget, AnalyzedTemplate, Environment, Target, Template, Variable,
-    VariableMap,
+    AnalyzedAssignment, AnalyzedBlock, AnalyzedBuiltinCall, AnalyzedCondition, AnalyzedDeclareArgs,
+    AnalyzedFile, AnalyzedForeach, AnalyzedForwardVariablesFrom, AnalyzedImport, AnalyzedLink,
+    AnalyzedStatement, AnalyzedTarget, AnalyzedTemplate, Environment, FileExports,
+    MutableFileExports, OwnedAnalyzedBlock, OwnedEnvironment, OwnedFileExports, OwnedLinkIndex,
+    Target, Template, Variable, VariableAssignment, WorkspaceContext,
 };
 
 pub use toplevel::TopLevelStatementsExt;
@@ -75,11 +70,7 @@ impl Analyzer {
         }
     }
 
-    pub fn analyze_file(
-        &self,
-        path: &Path,
-        request_time: Instant,
-    ) -> Result<Pin<Arc<AnalyzedFile>>> {
+    pub fn analyze_file(&self, path: &Path, request_time: Instant) -> Result<Arc<AnalyzedFile>> {
         Ok(self
             .workspace_for(path)?
             .lock()
@@ -89,10 +80,10 @@ impl Analyzer {
 
     pub fn analyze_at(
         &self,
-        file: &Pin<Arc<AnalyzedFile>>,
+        file: &Arc<AnalyzedFile>,
         pos: usize,
         request_time: Instant,
-    ) -> Result<Environment> {
+    ) -> Result<OwnedEnvironment> {
         Ok(self
             .workspace_for(&file.document.path)?
             .lock()
@@ -157,7 +148,7 @@ impl Analyzer {
 pub struct WorkspaceAnalyzer {
     context: WorkspaceContext,
     storage: Arc<Mutex<DocumentStorage>>,
-    cache: BTreeMap<PathBuf, Pin<Arc<AnalyzedFile>>>,
+    cache: BTreeMap<PathBuf, Arc<AnalyzedFile>>,
 }
 
 impl WorkspaceAnalyzer {
@@ -173,7 +164,7 @@ impl WorkspaceAnalyzer {
         &self.context
     }
 
-    pub fn cached_files_for_symbols(&self) -> Vec<Pin<Arc<AnalyzedFile>>> {
+    pub fn cached_files_for_symbols(&self) -> Vec<Arc<AnalyzedFile>> {
         self.cache
             .values()
             .filter(|file| !file.external)
@@ -181,11 +172,11 @@ impl WorkspaceAnalyzer {
             .collect()
     }
 
-    pub fn cached_files_for_references(&self) -> Vec<Pin<Arc<AnalyzedFile>>> {
+    pub fn cached_files_for_references(&self) -> Vec<Arc<AnalyzedFile>> {
         self.cache.values().cloned().collect()
     }
 
-    pub fn analyze_file(&mut self, path: &Path, request_time: Instant) -> Pin<Arc<AnalyzedFile>> {
+    pub fn analyze_file(&mut self, path: &Path, request_time: Instant) -> Arc<AnalyzedFile> {
         if let Some(cached_file) = self.cache.get(path) {
             if cached_file
                 .key
@@ -195,123 +186,106 @@ impl WorkspaceAnalyzer {
             }
         }
 
-        let new_file = self.analyze_file_uncached(path, request_time);
+        let new_file = Arc::new(self.analyze_file_uncached(path, request_time));
         self.cache.insert(path.to_path_buf(), new_file.clone());
         new_file
     }
 
-    pub fn analyze_files(&mut self, path: &Path, request_time: Instant) -> Environment {
-        let mut environment = Environment::new();
-        let mut visited = HashSet::from([path.to_path_buf()]);
+    pub fn analyze_files(&mut self, path: &Path, request_time: Instant) -> OwnedEnvironment {
+        let mut files: Vec<Arc<AnalyzedFile>> = Vec::new();
+        self.collect_imports(path, request_time, &mut files, &mut HashSet::new());
 
-        let current_file = self.analyze_file(path, request_time);
-
-        for child_path in current_file.exports.children.as_ref() {
-            self.collect_environments(child_path, request_time, &mut visited, &mut environment);
-        }
-
-        environment
-            .variables
-            .extend(current_file.exports.variables.as_ref().clone());
-        environment
-            .templates
-            .extend(current_file.exports.templates.as_ref().clone());
-        environment.files.push(current_file);
-        environment
+        OwnedEnvironment::new(files, |files| {
+            let mut environment = Environment::new();
+            for file in files.iter().rev() {
+                environment
+                    .variables
+                    .extend(file.exports.get().variables.clone());
+                environment
+                    .templates
+                    .extend(file.exports.get().templates.clone());
+            }
+            environment
+        })
     }
 
     pub fn analyze_at(
         &mut self,
-        file: &Pin<Arc<AnalyzedFile>>,
+        file: &Arc<AnalyzedFile>,
         pos: usize,
         request_time: Instant,
-    ) -> Environment {
-        let mut environment = Environment::new();
+    ) -> OwnedEnvironment {
+        let mut files: Vec<Arc<AnalyzedFile>> = vec![file.clone()];
         let mut visited = HashSet::from([file.document.path.clone()]);
 
-        // Collect from BUILDCONFIG.gn.
-        self.collect_environments(
+        // Collect BUILDCONFIG.gn.
+        self.collect_imports(
             &self.context.build_config.clone(),
             request_time,
+            &mut files,
             &mut visited,
-            &mut environment,
         );
 
-        // Collect from imported files.
-        for child_path in file.exports.children.as_ref() {
-            self.collect_environments(child_path, request_time, &mut visited, &mut environment);
+        // Collect imported files.
+        for child_path in &file.exports.get().children {
+            self.collect_imports(child_path, request_time, &mut files, &mut visited);
         }
 
-        // Collect from the local file.
-        // SAFETY: variables and templates are backed by file.
-        unsafe {
+        OwnedEnvironment::new(files, |files| {
+            let mut environment = Environment::new();
+            let (current_file, imported_files) = files.split_first().unwrap();
+
+            for file in imported_files.iter().rev() {
+                environment
+                    .variables
+                    .extend(file.exports.get().variables.clone());
+                environment
+                    .templates
+                    .extend(file.exports.get().templates.clone());
+            }
+
             environment
                 .variables
-                .extend(std::mem::transmute::<VariableMap, VariableMap>(
-                    file.local_variables_at(pos),
-                ));
+                .extend(current_file.local_variables_at(pos));
             environment
                 .templates
-                .extend(std::mem::transmute::<TemplateMap, TemplateMap>(
-                    file.local_templates_at(pos),
-                ));
-        }
-        environment.files.push(file.clone());
+                .extend(current_file.local_templates_at(pos));
 
-        environment
+            environment
+        })
     }
 
-    fn collect_environments(
+    fn collect_imports(
         &mut self,
         path: &Path,
         request_time: Instant,
+        files: &mut Vec<Arc<AnalyzedFile>>,
         visited: &mut HashSet<PathBuf>,
-        environment: &mut Environment,
     ) {
         if !visited.insert(path.to_path_buf()) {
             return;
         }
         let file = self.analyze_file(path, request_time);
-        for child_path in file.exports.children.as_ref() {
-            self.collect_environments(child_path, request_time, visited, environment);
+        files.push(file.clone());
+        for child_path in &file.exports.get().children {
+            self.collect_imports(child_path, request_time, files, visited);
         }
-        environment
-            .variables
-            .extend(file.exports.variables.as_ref().clone());
-        environment
-            .templates
-            .extend(file.exports.templates.as_ref().clone());
-        environment.files.push(file.clone());
     }
 
-    fn analyze_file_uncached(
-        &mut self,
-        path: &Path,
-        request_time: Instant,
-    ) -> Pin<Arc<AnalyzedFile>> {
+    fn analyze_file_uncached(&mut self, path: &Path, request_time: Instant) -> AnalyzedFile {
         let document = self.storage.lock().unwrap().read(path);
-        let ast = Box::pin(parse(&document.data));
+        let ast = OwnedBlock::new(document.clone(), |document| parse(&document.data));
 
-        let analyzed_root = self.analyze_block(&ast, &document);
-        let exports = self.analyze_exports(&ast, &document);
-
-        let links_map = collect_links(&ast, path, &self.context);
-        let symbols = collect_symbols(ast.as_node(), &document.line_index);
-
-        // SAFETY: links' contents are backed by pinned document.
-        let links_map = unsafe {
-            std::mem::transmute::<
-                HashMap<PathBuf, Vec<AnalyzedLink>>,
-                HashMap<PathBuf, Vec<AnalyzedLink>>,
-            >(links_map)
-        };
-        // SAFETY: exports' contents are backed by pinned document and pinned ast.
-        let exports = unsafe { std::mem::transmute::<FileExports, FileExports>(exports) };
-        // SAFETY: analyzed_root's contents are backed by pinned document and pinned ast.
-        let analyzed_root =
-            unsafe { std::mem::transmute::<AnalyzedBlock, AnalyzedBlock>(analyzed_root) };
-        // SAFETY: ast's contents are backed by pinned document.
-        let ast = unsafe { std::mem::transmute::<Pin<Box<Block>>, Pin<Box<Block>>>(ast) };
+        let analyzed_root = OwnedAnalyzedBlock::new(ast.clone(), |ast| {
+            self.analyze_block(ast.get(), ast.document())
+        });
+        let exports = OwnedFileExports::new(ast.clone(), |ast| {
+            self.analyze_exports(ast.get(), ast.document())
+        });
+        let link_index = OwnedLinkIndex::new(ast.clone(), |ast| {
+            collect_links(ast.get(), path, &self.context)
+        });
+        let symbols = collect_symbols(ast.get(), &document.line_index);
 
         AnalyzedFile::new(
             document,
@@ -319,17 +293,17 @@ impl WorkspaceAnalyzer {
             ast,
             analyzed_root,
             exports,
-            links_map,
+            link_index,
             symbols,
             request_time,
         )
     }
 
-    fn analyze_block<'i, 'p>(
+    fn analyze_block<'p>(
         &mut self,
-        block: &'p Block<'i>,
-        document: &'i Document,
-    ) -> AnalyzedBlock<'i, 'p> {
+        block: &'p Block<'p>,
+        document: &'p Document,
+    ) -> AnalyzedBlock<'p> {
         let mut statements: Vec<AnalyzedStatement> = Vec::new();
 
         for statement in &block.statements {
@@ -367,17 +341,16 @@ impl WorkspaceAnalyzer {
 
         AnalyzedBlock {
             statements,
-            block,
             document,
             span: block.span,
         }
     }
 
-    fn analyze_call<'i, 'p>(
+    fn analyze_call<'p>(
         &mut self,
-        call: &'p Call<'i>,
-        document: &'i Document,
-    ) -> AnalyzedStatement<'i, 'p> {
+        call: &'p Call<'p>,
+        document: &'p Document,
+    ) -> AnalyzedStatement<'p> {
         let body_block = call
             .block
             .as_ref()
@@ -480,11 +453,11 @@ impl WorkspaceAnalyzer {
         }))
     }
 
-    fn analyze_condition<'i, 'p>(
+    fn analyze_condition<'p>(
         &mut self,
-        condition: &'p Condition<'i>,
-        document: &'i Document,
-    ) -> AnalyzedCondition<'i, 'p> {
+        condition: &'p Condition<'p>,
+        document: &'p Document,
+    ) -> AnalyzedCondition<'p> {
         let expr_scopes = self.analyze_expr(&condition.condition, document);
         let then_block = self.analyze_block(&condition.then_block, document);
         let else_block = match &condition.else_block {
@@ -504,11 +477,11 @@ impl WorkspaceAnalyzer {
         }
     }
 
-    fn analyze_expr<'i, 'p>(
+    fn analyze_expr<'p>(
         &mut self,
-        expr: &'p Expr<'i>,
-        document: &'i Document,
-    ) -> Vec<AnalyzedBlock<'i, 'p>> {
+        expr: &'p Expr<'p>,
+        document: &'p Document,
+    ) -> Vec<AnalyzedBlock<'p>> {
         match expr {
             Expr::Primary(primary_expr) => match primary_expr.as_ref() {
                 PrimaryExpr::Block(block) => {
@@ -549,11 +522,11 @@ impl WorkspaceAnalyzer {
         }
     }
 
-    fn analyze_exports<'i, 'p>(
+    fn analyze_exports<'p>(
         &mut self,
-        block: &'p Block<'i>,
-        document: &'i Document,
-    ) -> FileExports<'i, 'p> {
+        block: &'p Block<'p>,
+        document: &'p Document,
+    ) -> FileExports<'p> {
         let mut exports = MutableFileExports::new();
         let mut declare_args_stack: Vec<&Call> = Vec::new();
 

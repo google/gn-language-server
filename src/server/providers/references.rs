@@ -24,7 +24,7 @@ use crate::{
     },
 };
 
-fn get_overlapping_targets<'i>(root: &AnalyzedBlock<'i, '_>, prefix: &str) -> Vec<&'i str> {
+fn get_overlapping_targets<'p>(root: &AnalyzedBlock<'p>, prefix: &str) -> Vec<&'p str> {
     root.targets()
         .filter(|target| target.name.len() > prefix.len() && target.name.starts_with(prefix))
         .map(|target| target.name)
@@ -36,7 +36,7 @@ pub fn target_references(
     current_file: &AnalyzedFile,
     target_name: &str,
 ) -> Result<Vec<Location>> {
-    let bad_prefixes = get_overlapping_targets(&current_file.analyzed_root, target_name);
+    let bad_prefixes = get_overlapping_targets(current_file.analyzed_root.get(), target_name);
 
     let cached_files = context
         .analyzer
@@ -47,7 +47,7 @@ pub fn target_references(
 
     let mut references: Vec<Location> = Vec::new();
     for file in cached_files {
-        let Some(links) = file.links_map.get(&current_file.document.path) else {
+        let Some(links) = file.link_index.get().get(&current_file.document.path) else {
             continue;
         };
         for link in links {

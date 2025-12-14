@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use std::{path::Path, pin::Pin, sync::Arc};
+use std::{path::Path, sync::Arc};
 
 use itertools::Itertools;
 use tower_lsp::lsp_types::{
@@ -86,7 +86,7 @@ fn is_after_dot(data: &str, offset: usize) -> bool {
 
 fn build_identifier_completions(
     context: &RequestContext,
-    current_file: &Pin<Arc<AnalyzedFile>>,
+    current_file: &Arc<AnalyzedFile>,
     offset: usize,
 ) -> Result<Vec<CompletionItem>> {
     // Handle identifier completions.
@@ -100,7 +100,7 @@ fn build_identifier_completions(
         .analyze_at(current_file, offset, context.request_time)?;
 
     // Enumerate variables at the current scope.
-    let variable_items = environment.variables.iter().map(|(name, variable)| {
+    let variable_items = environment.get().variables.iter().map(|(name, variable)| {
         let paragraphs = variable.format_help(&current_file.workspace_root);
         CompletionItem {
             label: name.to_string(),
@@ -114,7 +114,7 @@ fn build_identifier_completions(
     });
 
     // Enumerate templates defined at the current position.
-    let template_items = environment.templates.values().map(|template| {
+    let template_items = environment.get().templates.values().map(|template| {
         let paragraphs = template.format_help(&current_file.workspace_root);
         CompletionItem {
             label: template.name.to_string(),
@@ -185,7 +185,7 @@ pub async fn completion(
         .unwrap_or(0);
 
     // Handle string completions.
-    if let Some(prefix) = get_prefix_string_for_completion(&current_file.ast, offset) {
+    if let Some(prefix) = get_prefix_string_for_completion(current_file.ast.get(), offset) {
         // Target completions are not supported yet.
         if prefix.starts_with('/')
             || prefix.starts_with(':')

@@ -46,7 +46,8 @@ pub async fn goto_definition(
 
     // Check links first.
     if let Some(link) = current_file
-        .links_map
+        .link_index
+        .get()
         .values()
         .flatten()
         .find(|link| link.span().start() <= pos && pos <= link.span().end())
@@ -100,7 +101,7 @@ pub async fn goto_definition(
     let mut links: Vec<LocationLink> = Vec::new();
 
     // Check templates.
-    links.extend(environment.templates.get(ident.name).map(|template| {
+    links.extend(environment.get().templates.get(ident.name).map(|template| {
         LocationLink {
             origin_selection_range: Some(current_file.document.line_index.range(ident.span)),
             target_uri: Url::from_file_path(&template.document.path).unwrap(),
@@ -113,7 +114,7 @@ pub async fn goto_definition(
     }));
 
     // Check variables.
-    if let Some(variable) = environment.variables.get(ident.name) {
+    if let Some(variable) = environment.get().variables.get(ident.name) {
         links.extend(variable.assignments.iter().map(|assignment| {
             let span = match &assignment.assignment_or_call {
                 Either::Left(assignment) => assignment.span,

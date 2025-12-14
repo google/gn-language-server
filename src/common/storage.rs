@@ -15,12 +15,11 @@
 use std::{
     collections::BTreeMap,
     path::{Path, PathBuf},
-    pin::Pin,
     sync::Arc,
     time::SystemTime,
 };
 
-use crate::common::utils::LineIndex;
+use crate::common::utils::OwnedLineIndex;
 
 #[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
 pub enum DocumentVersion {
@@ -32,17 +31,15 @@ pub enum DocumentVersion {
 #[derive(Debug)]
 pub struct Document {
     pub path: PathBuf,
-    pub data: Pin<String>,
+    pub data: Arc<String>,
     pub version: DocumentVersion,
-    pub line_index: LineIndex<'static>,
+    pub line_index: OwnedLineIndex,
 }
 
 impl Document {
     pub fn new(path: &Path, data: String, version: DocumentVersion) -> Self {
-        let data = Pin::new(data);
-        let line_index = LineIndex::new(&data);
-        // SAFETY: line_index is backed by pinned data.
-        let line_index = unsafe { std::mem::transmute::<LineIndex, LineIndex>(line_index) };
+        let data = Arc::new(data);
+        let line_index = OwnedLineIndex::new(data.clone());
         Self {
             path: path.to_path_buf(),
             data,
@@ -71,7 +68,7 @@ impl Eq for Document {}
 
 #[derive(Default)]
 pub struct DocumentStorage {
-    memory_docs: BTreeMap<PathBuf, Pin<Arc<Document>>>,
+    memory_docs: BTreeMap<PathBuf, Arc<Document>>,
 }
 
 impl DocumentStorage {
@@ -91,20 +88,20 @@ impl DocumentStorage {
         DocumentVersion::OnDisk { modified }
     }
 
-    pub fn read(&self, path: &Path) -> Pin<Arc<Document>> {
+    pub fn read(&self, path: &Path) -> Arc<Document> {
         if let Some(doc) = self.memory_docs.get(path) {
             return doc.clone();
         }
         // Read the version first to be pesimistic about file changes.
         let version = self.read_version(path);
         let data = std::fs::read_to_string(path).unwrap_or_default();
-        Arc::pin(Document::new(path, data, version))
+        Arc::new(Document::new(path, data, version))
     }
 
     pub fn load_to_memory(&mut self, path: &Path, data: &str, revision: i32) {
         self.memory_docs.insert(
             path.to_path_buf(),
-            Arc::pin(Document::new(
+            Arc::new(Document::new(
                 path,
                 data.to_string(),
                 DocumentVersion::InMemory { revision },
@@ -116,7 +113,7 @@ impl DocumentStorage {
         self.memory_docs.remove(path);
     }
 
-    pub fn memory_docs(&self) -> Vec<Pin<Arc<Document>>> {
+    pub fn memory_docs(&self) -> Vec<Arc<Document>> {
         self.memory_docs.values().cloned().collect()
     }
 }

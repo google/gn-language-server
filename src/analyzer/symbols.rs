@@ -16,12 +16,12 @@ use either::Either;
 use tower_lsp::lsp_types::{DocumentSymbol, SymbolKind};
 
 use crate::{
-    common::utils::LineIndex,
+    common::utils::OwnedLineIndex,
     parser::{Node, Statement},
 };
 
 #[allow(deprecated)]
-pub fn collect_symbols(node: &dyn Node, line_index: &LineIndex) -> Vec<DocumentSymbol> {
+pub fn collect_symbols(node: &dyn Node, line_index: &OwnedLineIndex) -> Vec<DocumentSymbol> {
     let mut symbols = Vec::new();
     if let Some(statement) = node.as_statement() {
         match statement {

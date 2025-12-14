@@ -17,6 +17,8 @@ use std::{
     sync::Arc,
 };
 
+use self_cell::self_cell;
+
 use pest::Span;
 use tokio::sync::SetOnce;
 use tower_lsp::lsp_types::{Position, Range};
@@ -118,6 +120,38 @@ impl<'i> LineIndex<'i> {
         } else {
             None
         }
+    }
+}
+
+self_cell!(
+    struct LineIndexCell {
+        owner: Arc<String>,
+        #[covariant]
+        dependent: LineIndex,
+    }
+    impl {Debug}
+);
+
+#[derive(Clone, Debug)]
+pub struct OwnedLineIndex(Arc<LineIndexCell>);
+
+impl OwnedLineIndex {
+    pub fn new(input: Arc<String>) -> Self {
+        Self(Arc::new(LineIndexCell::new(input, |input| {
+            LineIndex::new(input.as_str())
+        })))
+    }
+
+    pub fn position(&self, offset: usize) -> Position {
+        self.0.borrow_dependent().position(offset)
+    }
+
+    pub fn range(&self, span: Span) -> Range {
+        self.0.borrow_dependent().range(span)
+    }
+
+    pub fn offset(&self, position: Position) -> Option<usize> {
+        self.0.borrow_dependent().offset(position)
     }
 }
 

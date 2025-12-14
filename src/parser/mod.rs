@@ -12,10 +12,13 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+use std::sync::Arc;
+
 use either::Either;
 use pest::Span;
+use self_cell::self_cell;
 
-use crate::common::utils::parse_simple_literal;
+use crate::common::{storage::Document, utils::parse_simple_literal};
 
 mod parse;
 mod tests;
@@ -273,6 +276,33 @@ impl<'i> Node<'i> for Block<'i> {
 
     fn span(&self) -> Span<'i> {
         self.span
+    }
+}
+
+self_cell!(
+    struct BlockSelfCell {
+        owner: Arc<Document>,
+        #[covariant]
+        dependent: Block,
+    }
+
+    impl {Debug, Eq, PartialEq}
+);
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct OwnedBlock(Arc<BlockSelfCell>);
+
+impl OwnedBlock {
+    pub fn new(document: Arc<Document>, builder: impl FnOnce(&Arc<Document>) -> Block<'_>) -> Self {
+        Self(Arc::new(BlockSelfCell::new(document, builder)))
+    }
+
+    pub fn get(&self) -> &Block<'_> {
+        self.0.borrow_dependent()
+    }
+
+    pub fn document(&self) -> &Document {
+        self.0.borrow_owner()
     }
 }
 
