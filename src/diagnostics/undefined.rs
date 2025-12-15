@@ -115,7 +115,7 @@ impl<'p> PrimaryExpr<'p> {
     fn collect_undefined_identifiers(
         &self,
         file: &'p AnalyzedFile,
-        analyzer: &mut WorkspaceAnalyzer,
+        analyzer: &WorkspaceAnalyzer,
         request_time: Instant,
         tracker: &EnvironmentTracker,
         diagnostics: &mut Vec<Diagnostic>,
@@ -188,7 +188,7 @@ impl<'p> Expr<'p> {
     fn collect_undefined_identifiers(
         &self,
         file: &'p AnalyzedFile,
-        analyzer: &mut WorkspaceAnalyzer,
+        analyzer: &WorkspaceAnalyzer,
         request_time: Instant,
         tracker: &EnvironmentTracker,
         diagnostics: &mut Vec<Diagnostic>,
@@ -236,7 +236,7 @@ impl<'p> AnalyzedBlock<'p> {
     fn collect_undefined_identifiers(
         &self,
         file: &AnalyzedFile,
-        analyzer: &mut WorkspaceAnalyzer,
+        analyzer: &WorkspaceAnalyzer,
         request_time: Instant,
         tracker: &mut EnvironmentTracker,
         diagnostics: &mut Vec<Diagnostic>,
@@ -397,7 +397,6 @@ pub fn collect_undefined_identifiers(
     let Ok(analyzer) = analyzer.workspace_for(&file.workspace_root) else {
         return Vec::new();
     };
-    let mut analyzer = analyzer.lock().unwrap();
 
     // Process BUILDCONFIG.gn.
     let mut tracker = EnvironmentTracker::new();
@@ -408,7 +407,7 @@ pub fn collect_undefined_identifiers(
     let mut diagnostics: Vec<Diagnostic> = Vec::new();
     file.analyzed_root.get().collect_undefined_identifiers(
         file,
-        &mut analyzer,
+        &analyzer,
         request_time,
         &mut tracker,
         &mut diagnostics,

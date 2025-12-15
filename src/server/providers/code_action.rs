@@ -88,11 +88,8 @@ fn compute_import_actions(
     let Ok(workspace) = context.analyzer.workspace_for(path) else {
         return Vec::new();
     };
-    let current_file = workspace
-        .lock()
-        .unwrap()
-        .analyze_file(path, context.request_time);
-    let workspace_files = workspace.lock().unwrap().cached_files_for_symbols();
+    let current_file = workspace.analyze_file(path, context.request_time);
+    let workspace_files = workspace.cached_files_for_symbols();
     let imports: Vec<String> = workspace_files
         .into_iter()
         .filter(|file| file.exports.get().variables.contains_key(name))

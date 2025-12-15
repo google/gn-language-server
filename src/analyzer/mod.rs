@@ -58,7 +58,7 @@ mod utils;
 pub struct Analyzer {
     storage: Arc<Mutex<DocumentStorage>>,
     workspace_finder: WorkspaceFinder,
-    workspaces: RwLock<BTreeMap<PathBuf, Arc<Mutex<WorkspaceAnalyzer>>>>,
+    workspaces: RwLock<BTreeMap<PathBuf, Arc<WorkspaceAnalyzer>>>,
 }
 
 impl Analyzer {
@@ -71,11 +71,7 @@ impl Analyzer {
     }
 
     pub fn analyze_file(&self, path: &Path, request_time: Instant) -> Result<Arc<AnalyzedFile>> {
-        Ok(self
-            .workspace_for(path)?
-            .lock()
-            .unwrap()
-            .analyze_file(path, request_time))
+        Ok(self.workspace_for(path)?.analyze_file(path, request_time))
     }
 
     pub fn analyze_at(
@@ -86,12 +82,10 @@ impl Analyzer {
     ) -> Result<OwnedEnvironment> {
         Ok(self
             .workspace_for(&file.document.path)?
-            .lock()
-            .unwrap()
             .analyze_at(file, pos, request_time))
     }
 
-    pub fn workspaces(&self) -> BTreeMap<PathBuf, Arc<Mutex<WorkspaceAnalyzer>>> {
+    pub fn workspaces(&self) -> BTreeMap<PathBuf, Arc<WorkspaceAnalyzer>> {
         self.workspaces.read().unwrap().clone()
     }
 
@@ -99,7 +93,7 @@ impl Analyzer {
         &self.workspace_finder
     }
 
-    pub fn workspace_for(&self, path: &Path) -> Result<Arc<Mutex<WorkspaceAnalyzer>>> {
+    pub fn workspace_for(&self, path: &Path) -> Result<Arc<WorkspaceAnalyzer>> {
         if !path.is_absolute() {
             return Err(Error::General("Path must be absolute".to_string()));
         }
@@ -117,7 +111,7 @@ impl Analyzer {
         {
             let read_lock = self.workspaces.read().unwrap();
             if let Some(analyzer) = read_lock.get(workspace_root) {
-                if analyzer.lock().unwrap().context().dot_gn_version == dot_gn_version {
+                if analyzer.context().dot_gn_version == dot_gn_version {
                     return Ok(analyzer.clone());
                 }
             }
@@ -135,7 +129,7 @@ impl Analyzer {
             build_config,
         };
 
-        let analyzer = Arc::new(Mutex::new(WorkspaceAnalyzer::new(&context, &self.storage)));
+        let analyzer = Arc::new(WorkspaceAnalyzer::new(&context, &self.storage));
 
         let mut write_lock = self.workspaces.write().unwrap();
         Ok(write_lock
@@ -148,7 +142,8 @@ impl Analyzer {
 pub struct WorkspaceAnalyzer {
     context: WorkspaceContext,
     storage: Arc<Mutex<DocumentStorage>>,
-    cache: BTreeMap<PathBuf, Arc<AnalyzedFile>>,
+    #[allow(clippy::type_complexity)]
+    cache: RwLock<BTreeMap<PathBuf, Arc<Mutex<Option<Arc<AnalyzedFile>>>>>>,
 }
 
 impl WorkspaceAnalyzer {
@@ -166,18 +161,38 @@ impl WorkspaceAnalyzer {
 
     pub fn cached_files_for_symbols(&self) -> Vec<Arc<AnalyzedFile>> {
         self.cache
+            .read()
+            .unwrap()
             .values()
+            .filter_map(|entry| entry.lock().unwrap().clone())
             .filter(|file| !file.external)
-            .cloned()
             .collect()
     }
 
     pub fn cached_files_for_references(&self) -> Vec<Arc<AnalyzedFile>> {
-        self.cache.values().cloned().collect()
+        self.cache
+            .read()
+            .unwrap()
+            .values()
+            .filter_map(|entry| entry.lock().unwrap().clone())
+            .collect()
     }
 
-    pub fn analyze_file(&mut self, path: &Path, request_time: Instant) -> Arc<AnalyzedFile> {
-        if let Some(cached_file) = self.cache.get(path) {
+    pub fn analyze_file(&self, path: &Path, request_time: Instant) -> Arc<AnalyzedFile> {
+        let entry = {
+            let read = self.cache.read().unwrap();
+            if let Some(entry) = read.get(path) {
+                entry.clone()
+            } else {
+                drop(read);
+                let mut write = self.cache.write().unwrap();
+                write.entry(path.to_path_buf()).or_default().clone()
+            }
+        };
+
+        let mut entry = entry.lock().unwrap();
+
+        if let Some(cached_file) = entry.as_ref() {
             if cached_file
                 .key
                 .verify(request_time, &self.storage.lock().unwrap())
@@ -187,11 +202,11 @@ impl WorkspaceAnalyzer {
         }
 
         let new_file = Arc::new(self.analyze_file_uncached(path, request_time));
-        self.cache.insert(path.to_path_buf(), new_file.clone());
+        *entry = Some(new_file.clone());
         new_file
     }
 
-    pub fn analyze_files(&mut self, path: &Path, request_time: Instant) -> OwnedEnvironment {
+    pub fn analyze_files(&self, path: &Path, request_time: Instant) -> OwnedEnvironment {
         let mut files: Vec<Arc<AnalyzedFile>> = Vec::new();
         self.collect_imports(path, request_time, &mut files, &mut HashSet::new());
 
@@ -210,7 +225,7 @@ impl WorkspaceAnalyzer {
     }
 
     pub fn analyze_at(
-        &mut self,
+        &self,
         file: &Arc<AnalyzedFile>,
         pos: usize,
         request_time: Instant,
@@ -256,7 +271,7 @@ impl WorkspaceAnalyzer {
     }
 
     fn collect_imports(
-        &mut self,
+        &self,
         path: &Path,
         request_time: Instant,
         files: &mut Vec<Arc<AnalyzedFile>>,
@@ -272,7 +287,7 @@ impl WorkspaceAnalyzer {
         }
     }
 
-    fn analyze_file_uncached(&mut self, path: &Path, request_time: Instant) -> AnalyzedFile {
+    fn analyze_file_uncached(&self, path: &Path, request_time: Instant) -> AnalyzedFile {
         let document = self.storage.lock().unwrap().read(path);
         let ast = OwnedBlock::new(document.clone(), |document| parse(&document.data));
 
@@ -299,11 +314,7 @@ impl WorkspaceAnalyzer {
         )
     }
 
-    fn analyze_block<'p>(
-        &mut self,
-        block: &'p Block<'p>,
-        document: &'p Document,
-    ) -> AnalyzedBlock<'p> {
+    fn analyze_block<'p>(&self, block: &'p Block<'p>, document: &'p Document) -> AnalyzedBlock<'p> {
         let mut statements: Vec<AnalyzedStatement> = Vec::new();
 
         for statement in &block.statements {
@@ -347,7 +358,7 @@ impl WorkspaceAnalyzer {
     }
 
     fn analyze_call<'p>(
-        &mut self,
+        &self,
         call: &'p Call<'p>,
         document: &'p Document,
     ) -> AnalyzedStatement<'p> {
@@ -458,7 +469,7 @@ impl WorkspaceAnalyzer {
     }
 
     fn analyze_condition<'p>(
-        &mut self,
+        &self,
         condition: &'p Condition<'p>,
         document: &'p Document,
     ) -> AnalyzedCondition<'p> {
@@ -482,7 +493,7 @@ impl WorkspaceAnalyzer {
     }
 
     fn analyze_expr<'p>(
-        &mut self,
+        &self,
         expr: &'p Expr<'p>,
         document: &'p Document,
     ) -> Vec<AnalyzedBlock<'p>> {
@@ -526,11 +537,7 @@ impl WorkspaceAnalyzer {
         }
     }
 
-    fn analyze_exports<'p>(
-        &mut self,
-        block: &'p Block<'p>,
-        document: &'p Document,
-    ) -> FileExports<'p> {
+    fn analyze_exports<'p>(&self, block: &'p Block<'p>, document: &'p Document) -> FileExports<'p> {
         let mut exports = MutableFileExports::new();
         let mut declare_args_stack: Vec<&Call> = Vec::new();
 

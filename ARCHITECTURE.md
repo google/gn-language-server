@@ -51,7 +51,7 @@ The server uses a freshness-checking mechanism to avoid re-analyzing unchanged f
 
 ### Concurrency
 
-The server is built on `tokio` to handle multiple LSP requests concurrently without blocking. Shared state, such as the `DocumentStorage` and `Analyzer`, is managed safely across threads using `Arc<Mutex<T>>`.
+The server is built on `tokio` to handle multiple LSP requests concurrently without blocking. Shared state is managed safely across threads. `DocumentStorage` uses `Arc<Mutex<T>>`, while the `Analyzer` uses `RwLock` and fine-grained internal locking to allow concurrent analysis of multiple files.
 
 ### Background Indexing
 

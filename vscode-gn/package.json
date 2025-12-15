@@ -78,6 +78,11 @@
           "default": true,
           "description": "Reports syntax errors."
         },
+        "gn.experimental.parallelIndexing": {
+          "type": "boolean",
+          "default": false,
+          "description": "Enables parallel indexing (experimental)."
+        },
         "gn.experimental.targetLens": {
           "type": "boolean",
           "default": false,

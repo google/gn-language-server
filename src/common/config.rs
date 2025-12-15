@@ -46,4 +46,5 @@ pub struct ExperimentalConfigurations {
     pub undefined_variable_analysis: bool,
     pub workspace_symbols: bool,
     pub target_lens: bool,
+    pub parallel_indexing: bool,
 }

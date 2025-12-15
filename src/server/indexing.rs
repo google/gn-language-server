@@ -14,6 +14,7 @@
 
 use std::{path::Path, time::Instant};
 
+use futures::{future::join_all, FutureExt};
 use tower_lsp::lsp_types::MessageType;
 
 use crate::{
@@ -24,7 +25,7 @@ use crate::{
     server::RequestContext,
 };
 
-pub async fn index(context: &RequestContext, workspace_root: &Path) {
+pub async fn index(context: &RequestContext, workspace_root: &Path, parallel: bool) {
     context
         .client
         .log_message(
@@ -34,15 +35,28 @@ pub async fn index(context: &RequestContext, workspace_root: &Path) {
         .await;
 
     let start_time = Instant::now();
+    let request_time = context.request_time;
+    let mut tasks = Vec::new();
     let mut count = 0;
 
     for path in find_gn_in_workspace_for_scan(workspace_root) {
-        context
-            .analyzer
-            .analyze_file(&path, context.request_time)
-            .ok();
+        let analyzer = context.analyzer.clone();
+        let task = async move {
+            analyzer.analyze_file(&path, request_time).ok();
+        };
+        let task = if parallel {
+            async move {
+                tokio::spawn(task);
+            }
+            .boxed()
+        } else {
+            task.boxed()
+        };
+        tasks.push(task);
         count += 1;
     }
+
+    join_all(tasks).await;
 
     let elapsed = start_time.elapsed();
     context

@@ -41,8 +41,6 @@ pub fn target_references(
     let cached_files = context
         .analyzer
         .workspace_for(&current_file.workspace_root)?
-        .lock()
-        .unwrap()
         .cached_files_for_references();
 
     let mut references: Vec<Location> = Vec::new();
