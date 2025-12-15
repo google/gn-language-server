@@ -25,8 +25,8 @@ import {
   Position,
   ResponseError,
   ServerOptions,
-  TextEdit,
   TransportKind,
+  WorkspaceEdit,
 } from 'vscode-languageclient/node';
 
 const EXECUTABLE_SUFFIX: string = process.platform === 'win32' ? '.exe' : '';
@@ -131,9 +131,9 @@ async function openBuildFile(): Promise<void> {
 }
 
 async function showTargetReferences(
-  converter: p2c.Converter,
   position: Position,
-  locations: Location[]
+  locations: Location[],
+  converter: p2c.Converter
 ): Promise<void> {
   const documentUri = vscode.window.activeTextEditor?.document?.uri;
   if (!documentUri) {
@@ -160,11 +160,12 @@ interface ChooseImportCandidatesData {
 
 interface ImportCandidate {
   import: string;
-  edit: TextEdit;
+  edit: WorkspaceEdit;
 }
 
 async function chooseImportCandidates(
-  data: ChooseImportCandidatesData
+  data: ChooseImportCandidatesData,
+  converter: p2c.Converter
 ): Promise<void> {
   const items = data.candidates.map(candidate => ({
     label: `Import \`${candidate.import}\``,
@@ -172,21 +173,7 @@ async function chooseImportCandidates(
   }));
   const selectedItem = await vscode.window.showQuickPick(items);
   if (selectedItem && vscode.window.activeTextEditor) {
-    const workspaceEdit = new vscode.WorkspaceEdit();
-    workspaceEdit.replace(
-      vscode.window.activeTextEditor.document.uri,
-      new vscode.Range(
-        new vscode.Position(
-          selectedItem.edit.range.start.line,
-          selectedItem.edit.range.start.character
-        ),
-        new vscode.Position(
-          selectedItem.edit.range.end.line,
-          selectedItem.edit.range.end.character
-        )
-      ),
-      selectedItem.edit.newText
-    );
+    const workspaceEdit = await converter.asWorkspaceEdit(selectedItem.edit);
     await vscode.workspace.applyEdit(workspaceEdit);
   }
 }
@@ -258,10 +245,12 @@ async function startLanguageServer(
   context.subscriptions.push(
     vscode.commands.registerCommand(
       'gn.showTargetReferences',
-      (position: Position, locations: Location[]) =>
-        showTargetReferences(client.protocol2CodeConverter, position, locations)
+      (position, locations) =>
+        showTargetReferences(position, locations, client.protocol2CodeConverter)
     ),
-    vscode.commands.registerCommand('gn.copyTargetLabel', copyTargetLabel)
+    vscode.commands.registerCommand('gn.chooseImportCandidates', data =>
+      chooseImportCandidates(data, client.protocol2CodeConverter)
+    )
   );
 }
 
@@ -278,10 +267,7 @@ export function activate(context: vscode.ExtensionContext): void {
 
   context.subscriptions.push(
     vscode.commands.registerCommand('gn.openBuildFile', openBuildFile),
-    vscode.commands.registerCommand(
-      'gn.chooseImportCandidates',
-      chooseImportCandidates
-    )
+    vscode.commands.registerCommand('gn.copyTargetLabel', copyTargetLabel)
   );
 
   reportAsyncError(output, startLanguageServer(context, output));

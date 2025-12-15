@@ -12,19 +12,20 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use std::{collections::HashMap, path::Path};
+use std::path::Path;
 
 use itertools::Itertools;
 use tower_lsp::lsp_types::{
     CodeAction, CodeActionKind, CodeActionOrCommand, CodeActionParams, CodeActionResponse, Command,
-    Diagnostic, NumberOrString, Range, TextEdit, Url, WorkspaceEdit,
+    Diagnostic, NumberOrString, WorkspaceEdit,
 };
 
 use crate::{
-    analyzer::{AnalyzedFile, AnalyzedStatement},
     common::{error::Result, utils::format_path},
     diagnostics::{DiagnosticDataUndefined, DIAGNOSTIC_CODE_UNDEFINED},
-    server::{providers::utils::get_text_document_path, RequestContext},
+    server::{
+        imports::create_import_edit, providers::utils::get_text_document_path, RequestContext,
+    },
 };
 
 #[derive(serde::Serialize, serde::Deserialize)]
@@ -35,48 +36,7 @@ struct ChooseImportCandidatesData {
 #[derive(serde::Serialize, serde::Deserialize)]
 struct ImportCandidate {
     pub import: String,
-    pub edit: TextEdit,
-}
-
-fn get_import<'p>(statement: &AnalyzedStatement<'p>) -> Option<&'p str> {
-    match statement {
-        AnalyzedStatement::Import(import) => Some(import.name),
-        _ => None,
-    }
-}
-
-fn compute_import_edit(current_file: &AnalyzedFile, import: &str) -> TextEdit {
-    // Find the first top-level import block.
-    let first_import_block: Vec<_> = current_file
-        .analyzed_root
-        .get()
-        .statements
-        .iter()
-        .skip_while(|statement| get_import(statement).is_none())
-        .take_while(|statement| get_import(statement).is_some())
-        .collect();
-
-    let (insert_offset, prefix, suffix) = if first_import_block.is_empty() {
-        if let Some(first_statement) = current_file.analyzed_root.get().statements.first() {
-            (first_statement.span().start(), "", "\n\n")
-        } else {
-            (current_file.document.data.len(), "", "\n\n")
-        }
-    } else if let Some(next_import) = first_import_block
-        .iter()
-        .copied()
-        .find(|statement| get_import(statement).unwrap() > import)
-    {
-        (next_import.span().start(), "", "\n")
-    } else {
-        (first_import_block.last().unwrap().span().end(), "\n", "")
-    };
-
-    let insert_pos = current_file.document.line_index.position(insert_offset);
-    TextEdit {
-        range: Range::new(insert_pos, insert_pos),
-        new_text: format!("{prefix}import(\"{import}\"){suffix}"),
-    }
+    pub edit: WorkspaceEdit,
 }
 
 fn compute_import_actions(
@@ -100,18 +60,11 @@ fn compute_import_actions(
         return Vec::new();
     }
     if let Ok(only_import) = imports.iter().exactly_one() {
-        let edit = WorkspaceEdit {
-            changes: Some(HashMap::from([(
-                Url::from_file_path(&current_file.document.path).unwrap(),
-                vec![compute_import_edit(&current_file, only_import)],
-            )])),
-            ..Default::default()
-        };
         return vec![CodeActionOrCommand::CodeAction(CodeAction {
             title: format!("Import `{name}` from `{only_import}`"),
             kind: Some(CodeActionKind::QUICKFIX),
             diagnostics: Some(vec![diagnostic.clone()]),
-            edit: Some(edit),
+            edit: Some(create_import_edit(&current_file, only_import)),
             command: None,
             is_preferred: Some(true),
             ..Default::default()
@@ -123,7 +76,7 @@ fn compute_import_actions(
             .iter()
             .map(|import| ImportCandidate {
                 import: import.clone(),
-                edit: compute_import_edit(&current_file, import),
+                edit: create_import_edit(&current_file, import),
             })
             .collect(),
     };
