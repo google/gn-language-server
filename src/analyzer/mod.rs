@@ -30,7 +30,7 @@ use crate::{
         builtins::{DECLARE_ARGS, FOREACH, FORWARD_VARIABLES_FROM, IMPORT, SET_DEFAULTS, TEMPLATE},
         error::{Error, Result},
         storage::{Document, DocumentStorage},
-        utils::{is_exported, parse_simple_literal, AsyncSignal},
+        utils::{is_exported, is_good_for_scan, parse_simple_literal, AsyncSignal},
         workspace::WorkspaceFinder,
     },
     parser::{
@@ -194,12 +194,14 @@ impl WorkspaceAnalyzer {
         &self.indexed
     }
 
-    pub fn cached_files(&self) -> Vec<Arc<AnalyzedFile>> {
+    pub async fn scan_files(&self) -> Vec<Arc<AnalyzedFile>> {
+        self.indexed.wait().await;
         self.cache
             .read()
             .unwrap()
             .values()
             .filter_map(|entry| entry.lock().unwrap().clone())
+            .filter(|file| is_good_for_scan(&file.document.path))
             .collect()
     }
 

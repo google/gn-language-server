@@ -41,7 +41,7 @@ struct CodeLensDataTargetReferences {
     pub target_name: String,
 }
 
-fn compute_references_lens(
+async fn compute_references_lens(
     workspace: &WorkspaceAnalyzer,
     path: &Path,
     range: Range,
@@ -49,7 +49,7 @@ fn compute_references_lens(
     request_time: Instant,
 ) -> Result<CodeLens> {
     let current_file = workspace.analyze_file(path, request_time);
-    let references = target_references(workspace, &current_file, target_name)?;
+    let references = target_references(workspace, &current_file, target_name).await?;
     let title = match references.len() {
         0 => "No references".to_string(),
         1 => "1 reference".to_string(),
@@ -88,21 +88,18 @@ pub async fn code_lens(
 
     if configs.background_indexing {
         if workspace.indexed().done() {
-            lens.extend(
-                targets
-                    .iter()
-                    .map(|target| {
-                        let range = current_file.document.line_index.range(target.call.span);
-                        compute_references_lens(
-                            &workspace,
-                            &path,
-                            range,
-                            target.name,
-                            context.request_time,
-                        )
-                    })
-                    .collect::<Result<Vec<_>>>()?,
-            );
+            for target in &targets {
+                lens.push(
+                    compute_references_lens(
+                        &workspace,
+                        &path,
+                        current_file.document.line_index.range(target.call.span),
+                        target.name,
+                        context.request_time,
+                    )
+                    .await?,
+                );
+            }
         } else {
             lens.extend(targets.iter().map(|target| {
                 let range = current_file.document.line_index.range(target.call.span);
@@ -155,7 +152,6 @@ pub async fn code_lens_resolve(
     match data {
         CodeLensData::TargetReferences(CodeLensDataTargetReferences { path, target_name }) => {
             let workspace = context.analyzer.workspace_for(&path)?;
-            workspace.indexed().wait().await;
             compute_references_lens(
                 &workspace,
                 &path,
@@ -163,6 +159,7 @@ pub async fn code_lens_resolve(
                 &target_name,
                 context.request_time,
             )
+            .await
         }
     }
 }

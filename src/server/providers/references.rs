@@ -30,17 +30,17 @@ fn get_overlapping_targets<'p>(root: &AnalyzedBlock<'p>, prefix: &str) -> Vec<&'
         .collect()
 }
 
-pub fn target_references(
+pub async fn target_references(
     workspace: &WorkspaceAnalyzer,
     current_file: &AnalyzedFile,
     target_name: &str,
 ) -> Result<Vec<Location>> {
     let bad_prefixes = get_overlapping_targets(current_file.analyzed_root.get(), target_name);
 
-    let cached_files = workspace.cached_files();
+    let files = workspace.scan_files().await;
 
     let mut references: Vec<Location> = Vec::new();
-    for file in cached_files {
+    for file in files {
         let Some(links) = file.link_index.get().get(&current_file.document.path) else {
             continue;
         };
@@ -89,13 +89,9 @@ pub async fn references(
     };
 
     if let Some(target) = lookup_target_name_string_at(&current_file, pos) {
-        // Wait for the workspace indexing to finish.
-        workspace.indexed().wait().await;
-        return Ok(Some(target_references(
-            &workspace,
-            &current_file,
-            target.name,
-        )?));
+        return Ok(Some(
+            target_references(&workspace, &current_file, target.name).await?,
+        ));
     };
 
     Ok(None)
