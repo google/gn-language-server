@@ -23,7 +23,7 @@ use crate::{
         WorkspaceAnalyzer,
     },
     common::builtins::{BUILTINS, DEFINED},
-    diagnostics::{DIAGNOSTIC_CODE_UNDEFINED, DiagnosticDataUndefined},
+    diagnostics::{DiagnosticDataUndefined, DIAGNOSTIC_CODE_UNDEFINED},
     parser::{Expr, Identifier, LValue, PrimaryExpr},
 };
 
