@@ -19,6 +19,7 @@ import os
 import re
 import subprocess
 
+_GN_COMMIT = '4e0818fd86bffc0b4a4b61d3295a6732ba08d715'
 
 _SECTION_RE = re.compile(r'^## <a name="([^"]+)">[^\n]*\n\n(.*?)(?=^## |\Z)', re.DOTALL | re.MULTILINE)
 _ITEM_RE = re.compile(r'^### <a name="[^"]+"></a>(\*+([^*]+)\*+[^\n]*?)&nbsp;[^\n]*\n(.*?)(?=^### |\Z)', re.DOTALL | re.MULTILINE)
@@ -29,7 +30,9 @@ def _ensure_gn(out_dir: str):
     gn_dir = os.path.join(out_dir, 'gn')
     if not os.path.exists(gn_dir):
         subprocess.check_call(['git', 'clone', 'https://gn.googlesource.com/gn'], cwd=out_dir)
-    subprocess.check_call(['git', 'checkout', '--quiet', '4e0818fd86bffc0b4a4b61d3295a6732ba08d715'], cwd=gn_dir)
+    elif subprocess.run(['git', 'cat-file', '-t', _GN_COMMIT], stdout=subprocess.PIPE, cwd=out_dir).stdout.strip() != 'commit':
+        subprocess.check_call(['git', 'fetch', 'origin', 'main'], cwd=gn_dir)
+    subprocess.check_call(['git', 'checkout', '--quiet', _GN_COMMIT], cwd=gn_dir)
 
 
 def _generate_builtins(out_dir: str):
