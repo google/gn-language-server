@@ -194,17 +194,7 @@ impl WorkspaceAnalyzer {
         &self.indexed
     }
 
-    pub fn cached_files_for_symbols(&self) -> Vec<Arc<AnalyzedFile>> {
-        self.cache
-            .read()
-            .unwrap()
-            .values()
-            .filter_map(|entry| entry.lock().unwrap().clone())
-            .filter(|file| !file.external)
-            .collect()
-    }
-
-    pub fn cached_files_for_references(&self) -> Vec<Arc<AnalyzedFile>> {
+    pub fn cached_files(&self) -> Vec<Arc<AnalyzedFile>> {
         self.cache
             .read()
             .unwrap()

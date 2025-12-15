@@ -37,7 +37,7 @@ pub fn target_references(
 ) -> Result<Vec<Location>> {
     let bad_prefixes = get_overlapping_targets(current_file.analyzed_root.get(), target_name);
 
-    let cached_files = workspace.cached_files_for_references();
+    let cached_files = workspace.cached_files();
 
     let mut references: Vec<Location> = Vec::new();
     for file in cached_files {

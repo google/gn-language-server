@@ -15,7 +15,10 @@
 use either::Either;
 use tower_lsp::lsp_types::{Location, SymbolInformation, SymbolKind, Url};
 
-use crate::analyzer::{AnalyzedFile, Analyzer, WorkspaceAnalyzer};
+use crate::{
+    analyzer::{AnalyzedFile, Analyzer, WorkspaceAnalyzer},
+    common::utils::is_good_for_scan,
+};
 
 pub async fn collect_global_symbols(analyzer: &Analyzer) -> Vec<SymbolInformation> {
     let workspaces = analyzer.workspaces();
@@ -29,9 +32,10 @@ pub async fn collect_global_symbols(analyzer: &Analyzer) -> Vec<SymbolInformatio
 
 pub async fn collect_workspace_symbols(workspace: &WorkspaceAnalyzer) -> Vec<SymbolInformation> {
     workspace.indexed().wait().await;
-    let files = workspace.cached_files_for_symbols();
+    let files = workspace.cached_files();
     files
         .into_iter()
+        .filter(|file| !file.external && is_good_for_scan(&file.document.path))
         .flat_map(|file| extract_symbols(&file))
         .collect()
 }

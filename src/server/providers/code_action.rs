@@ -17,14 +17,15 @@ use std::path::Path;
 use itertools::Itertools;
 use tower_lsp::lsp_types::{
     CodeAction, CodeActionKind, CodeActionOrCommand, CodeActionParams, CodeActionResponse, Command,
-    Diagnostic, NumberOrString, WorkspaceEdit,
+    Diagnostic, NumberOrString, SymbolKind, WorkspaceEdit,
 };
 
 use crate::{
     common::{error::Result, utils::format_path},
     diagnostics::{DiagnosticDataUndefined, DIAGNOSTIC_CODE_UNDEFINED},
     server::{
-        imports::create_import_edit, providers::utils::get_text_document_path, RequestContext,
+        imports::create_import_edit, providers::utils::get_text_document_path,
+        symbols::collect_workspace_symbols, RequestContext,
     },
 };
 
@@ -39,7 +40,7 @@ struct ImportCandidate {
     pub edit: WorkspaceEdit,
 }
 
-fn compute_import_actions(
+async fn compute_import_actions(
     context: &RequestContext,
     path: &Path,
     name: &str,
@@ -49,13 +50,23 @@ fn compute_import_actions(
         return Vec::new();
     };
     let current_file = workspace.analyze_file(path, context.request_time);
-    let workspace_files = workspace.cached_files_for_symbols();
-    let imports: Vec<String> = workspace_files
+    let symbols = collect_workspace_symbols(&workspace).await;
+
+    let imports: Vec<String> = symbols
         .into_iter()
-        .filter(|file| file.exports.get().variables.contains_key(name))
-        .map(|file| format_path(&file.document.path, &file.workspace_root))
+        .filter(|symbol| {
+            symbol.name == name
+                && matches!(symbol.kind, SymbolKind::VARIABLE | SymbolKind::CONSTANT)
+        })
+        .map(|symbol| {
+            format_path(
+                &symbol.location.uri.to_file_path().unwrap(),
+                &workspace.context().root,
+            )
+        })
         .sorted()
         .collect();
+
     if imports.is_empty() {
         return Vec::new();
     }
@@ -114,9 +125,8 @@ pub async fn code_action(
                 else {
                     continue;
                 };
-                actions.extend(compute_import_actions(
-                    context, &path, &data.name, diagnostic,
-                ));
+                actions
+                    .extend(compute_import_actions(context, &path, &data.name, diagnostic).await);
             }
             _ => {}
         }
