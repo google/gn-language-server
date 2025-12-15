@@ -22,7 +22,7 @@ use self_cell::self_cell;
 use pest::Span;
 use tokio::sync::SetOnce;
 use tower_lsp::lsp_types::{Position, Range};
-use walkdir::WalkDir;
+use walkdir::{DirEntry, WalkDir};
 
 pub fn is_exported(name: &str) -> bool {
     !name.starts_with("_")
@@ -36,12 +36,26 @@ pub fn format_path(path: &Path, workspace_root: &Path) -> String {
     }
 }
 
+fn filter_source_entry(entry: &DirEntry) -> bool {
+    // Drop dot files.
+    if entry
+        .file_name()
+        .to_str()
+        .is_some_and(|name| name.starts_with('.'))
+    {
+        return false;
+    }
+    // Drop output directories.
+    if entry.file_type().is_dir() && entry.path().join("args.gn").exists() {
+        return false;
+    }
+    true
+}
+
 pub fn walk_source_dirs(root: &Path) -> impl Iterator<Item = PathBuf> {
     WalkDir::new(root)
         .into_iter()
-        .filter_entry(|entry| {
-            !(entry.file_type().is_dir() && entry.path().join("args.gn").exists())
-        })
+        .filter_entry(filter_source_entry)
         .filter_map(|entry| entry.ok())
         .map(|entry| entry.into_path())
 }
