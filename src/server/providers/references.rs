@@ -15,10 +15,9 @@
 use tower_lsp::lsp_types::{Location, ReferenceParams, Url};
 
 use crate::{
-    analyzer::{AnalyzedBlock, AnalyzedFile, AnalyzedLink},
+    analyzer::{AnalyzedBlock, AnalyzedFile, AnalyzedLink, WorkspaceAnalyzer},
     common::error::Result,
     server::{
-        indexing::wait_indexing,
         providers::utils::{get_text_document_path, lookup_target_name_string_at},
         RequestContext,
     },
@@ -32,16 +31,13 @@ fn get_overlapping_targets<'p>(root: &AnalyzedBlock<'p>, prefix: &str) -> Vec<&'
 }
 
 pub fn target_references(
-    context: &RequestContext,
+    workspace: &WorkspaceAnalyzer,
     current_file: &AnalyzedFile,
     target_name: &str,
 ) -> Result<Vec<Location>> {
     let bad_prefixes = get_overlapping_targets(current_file.analyzed_root.get(), target_name);
 
-    let cached_files = context
-        .analyzer
-        .workspace_for(&current_file.workspace_root)?
-        .cached_files_for_references();
+    let cached_files = workspace.cached_files_for_references();
 
     let mut references: Vec<Location> = Vec::new();
     for file in cached_files {
@@ -81,7 +77,8 @@ pub async fn references(
     }
 
     let path = get_text_document_path(&params.text_document_position.text_document)?;
-    let current_file = context.analyzer.analyze_file(&path, context.request_time)?;
+    let workspace = context.analyzer.workspace_for(&path)?;
+    let current_file = workspace.analyze_file(&path, context.request_time);
 
     let Some(pos) = current_file
         .document
@@ -93,9 +90,9 @@ pub async fn references(
 
     if let Some(target) = lookup_target_name_string_at(&current_file, pos) {
         // Wait for the workspace indexing to finish.
-        wait_indexing(context, &current_file.workspace_root).await?;
+        workspace.indexed().wait().await;
         return Ok(Some(target_references(
-            context,
+            &workspace,
             &current_file,
             target.name,
         )?));

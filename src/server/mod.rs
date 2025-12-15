@@ -12,14 +12,15 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+#[cfg(test)]
+use std::path::Path;
 use std::{
-    collections::{btree_map::Entry, BTreeMap},
-    path::{Path, PathBuf},
+    collections::BTreeMap,
+    path::PathBuf,
     sync::{Arc, Mutex, OnceLock},
     time::Instant,
 };
 
-use tokio::spawn;
 use tower_lsp::{
     lsp_types::{
         CodeActionKind, CodeActionOptions, CodeActionParams, CodeActionProviderCapability,
@@ -44,7 +45,6 @@ use crate::{
     },
 };
 
-mod indexing;
 mod providers;
 
 struct ServerContext {
@@ -66,11 +66,14 @@ impl ServerContext {
 
     #[cfg(test)]
     pub fn new_for_testing(client_root: Option<&Path>) -> Self {
+        use crate::analyzer::IndexingLevel;
+
         let storage = Arc::new(Mutex::new(DocumentStorage::new()));
         let analyzer = OnceLock::new();
         let _ = analyzer.set(Arc::new(Analyzer::new(
             &storage,
             WorkspaceFinder::new(client_root),
+            IndexingLevel::Disabled,
         )));
         Self {
             storage,
@@ -117,34 +120,6 @@ impl Backend {
             context: ServerContext::new(storage, client),
         }
     }
-
-    async fn maybe_index_workspace_for(
-        &self,
-        context: &RequestContext,
-        path: &Path,
-        parallel_indexing: bool,
-    ) {
-        let Some(workspace_root) = context.analyzer.workspace_finder().find_for(path) else {
-            return;
-        };
-        let workspace_root = workspace_root.to_path_buf();
-
-        let mut indexed = match context
-            .indexed
-            .lock()
-            .unwrap()
-            .entry(workspace_root.to_path_buf())
-        {
-            Entry::Occupied(_) => return,
-            Entry::Vacant(entry) => entry.insert(AsyncSignal::new()).clone(),
-        };
-
-        let context = context.clone();
-        spawn(async move {
-            indexing::index(&context, &workspace_root, parallel_indexing).await;
-            indexed.set();
-        });
-    }
 }
 
 #[tower_lsp::async_trait]
@@ -156,7 +131,12 @@ impl LanguageServer for Backend {
                 .and_then(|root_uri| root_uri.to_file_path().ok())
                 .as_deref(),
         );
-        let analyzer = Arc::new(Analyzer::new(&self.context.storage, finder));
+        let configurations = self.context.client.configurations().await;
+        let analyzer = Arc::new(Analyzer::new(
+            &self.context.storage,
+            finder,
+            configurations.indexing_level(),
+        ));
         self.context.analyzer.set(analyzer).ok();
 
         Ok(InitializeResult {
@@ -212,15 +192,8 @@ impl LanguageServer for Backend {
         let Ok(path) = Url::to_file_path(&params.text_document.uri) else {
             return;
         };
-        let configurations = self.context.client.configurations().await;
-        if configurations.background_indexing {
-            self.maybe_index_workspace_for(
-                &context,
-                &path,
-                configurations.experimental.parallel_indexing,
-            )
-            .await;
-        }
+        // Maybe trigger the background indexing.
+        context.analyzer.workspace_for(&path).ok();
         providers::document::did_open(&self.context.request(), params).await;
     }
 

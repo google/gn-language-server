@@ -21,7 +21,7 @@ use std::{
 use futures::future::join_all;
 
 use crate::{
-    analyzer::Analyzer,
+    analyzer::{Analyzer, IndexingLevel},
     common::{
         storage::DocumentStorage, utils::find_gn_in_workspace_for_scan, workspace::WorkspaceFinder,
     },
@@ -32,6 +32,7 @@ pub async fn run_bench(workspace_root: &Path) {
     let analyzer = Arc::new(Analyzer::new(
         &storage,
         WorkspaceFinder::new(Some(workspace_root)),
+        IndexingLevel::Disabled,
     ));
 
     let start_time = Instant::now();

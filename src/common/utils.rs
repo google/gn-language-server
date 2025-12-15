@@ -195,7 +195,7 @@ impl AsyncSignal {
         self.done.wait().await;
     }
 
-    pub fn set(&mut self) -> bool {
+    pub fn set(&self) -> bool {
         self.done.set(()).is_ok()
     }
 }

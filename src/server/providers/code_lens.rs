@@ -12,15 +12,18 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use std::path::{Path, PathBuf};
+use std::{
+    path::{Path, PathBuf},
+    time::Instant,
+};
 
 use serde_json::Value;
 use tower_lsp::lsp_types::{CodeLens, CodeLensParams, Command, Range};
 
 use crate::{
+    analyzer::WorkspaceAnalyzer,
     common::{error::Result, utils::format_path},
     server::{
-        indexing::{check_indexing, wait_indexing},
         providers::{references::target_references, utils::get_text_document_path},
         RequestContext,
     },
@@ -39,13 +42,14 @@ struct CodeLensDataTargetReferences {
 }
 
 fn compute_references_lens(
-    context: &RequestContext,
+    workspace: &WorkspaceAnalyzer,
     path: &Path,
     range: Range,
     target_name: &str,
+    request_time: Instant,
 ) -> Result<CodeLens> {
-    let current_file = context.analyzer.analyze_file(path, context.request_time)?;
-    let references = target_references(context, &current_file, target_name)?;
+    let current_file = workspace.analyze_file(path, request_time);
+    let references = target_references(workspace, &current_file, target_name)?;
     let title = match references.len() {
         0 => "No references".to_string(),
         1 => "1 reference".to_string(),
@@ -75,20 +79,27 @@ pub async fn code_lens(
     }
 
     let path = get_text_document_path(&params.text_document)?;
-    let current_file = context.analyzer.analyze_file(&path, context.request_time)?;
+    let workspace = context.analyzer.workspace_for(&path)?;
+    let current_file = workspace.analyze_file(&path, context.request_time);
 
     let targets: Vec<_> = current_file.analyzed_root.get().targets().collect();
 
     let mut lens: Vec<CodeLens> = Vec::new();
 
     if configs.background_indexing {
-        if check_indexing(context, &current_file.workspace_root)? {
+        if workspace.indexed().done() {
             lens.extend(
                 targets
                     .iter()
                     .map(|target| {
                         let range = current_file.document.line_index.range(target.call.span);
-                        compute_references_lens(context, &path, range, target.name)
+                        compute_references_lens(
+                            &workspace,
+                            &path,
+                            range,
+                            target.name,
+                            context.request_time,
+                        )
                     })
                     .collect::<Result<Vec<_>>>()?,
             );
@@ -143,9 +154,15 @@ pub async fn code_lens_resolve(
     let data = serde_json::from_value::<CodeLensData>(partial_lens.data.unwrap())?;
     match data {
         CodeLensData::TargetReferences(CodeLensDataTargetReferences { path, target_name }) => {
-            let current_file = context.analyzer.analyze_file(&path, context.request_time)?;
-            wait_indexing(context, &current_file.workspace_root).await?;
-            compute_references_lens(context, &path, partial_lens.range, &target_name)
+            let workspace = context.analyzer.workspace_for(&path)?;
+            workspace.indexed().wait().await;
+            compute_references_lens(
+                &workspace,
+                &path,
+                partial_lens.range,
+                &target_name,
+                context.request_time,
+            )
         }
     }
 }

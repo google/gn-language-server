@@ -22,12 +22,15 @@ use std::{
 use either::Either;
 
 use crate::{
-    analyzer::{dotgn::evaluate_dot_gn, links::collect_links, symbols::collect_symbols},
+    analyzer::{
+        dotgn::evaluate_dot_gn, indexing::build_index, links::collect_links,
+        symbols::collect_symbols,
+    },
     common::{
         builtins::{DECLARE_ARGS, FOREACH, FORWARD_VARIABLES_FROM, IMPORT, SET_DEFAULTS, TEMPLATE},
         error::{Error, Result},
         storage::{Document, DocumentStorage},
-        utils::{is_exported, parse_simple_literal},
+        utils::{is_exported, parse_simple_literal, AsyncSignal},
         workspace::WorkspaceFinder,
     },
     parser::{
@@ -49,23 +52,36 @@ pub use toplevel::TopLevelStatementsExt;
 mod cache;
 mod data;
 mod dotgn;
+mod indexing;
 mod links;
 mod symbols;
 mod tests;
 mod toplevel;
 mod utils;
 
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum IndexingLevel {
+    Disabled,
+    Enabled { parallel: bool },
+}
+
 pub struct Analyzer {
     storage: Arc<Mutex<DocumentStorage>>,
     workspace_finder: WorkspaceFinder,
+    indexing_level: IndexingLevel,
     workspaces: RwLock<BTreeMap<PathBuf, Arc<WorkspaceAnalyzer>>>,
 }
 
 impl Analyzer {
-    pub fn new(storage: &Arc<Mutex<DocumentStorage>>, workspace_finder: WorkspaceFinder) -> Self {
+    pub fn new(
+        storage: &Arc<Mutex<DocumentStorage>>,
+        workspace_finder: WorkspaceFinder,
+        indexing_level: IndexingLevel,
+    ) -> Self {
         Self {
             storage: storage.clone(),
             workspace_finder,
+            indexing_level,
             workspaces: Default::default(),
         }
     }
@@ -131,6 +147,19 @@ impl Analyzer {
 
         let analyzer = Arc::new(WorkspaceAnalyzer::new(&context, &self.storage));
 
+        match self.indexing_level {
+            IndexingLevel::Disabled => {
+                analyzer.indexed().set();
+            }
+            IndexingLevel::Enabled { parallel } => {
+                let analyzer = analyzer.clone();
+                tokio::spawn(async move {
+                    build_index(&analyzer, parallel).await;
+                    analyzer.indexed().set();
+                });
+            }
+        }
+
         let mut write_lock = self.workspaces.write().unwrap();
         Ok(write_lock
             .entry(workspace_root.to_path_buf())
@@ -142,6 +171,7 @@ impl Analyzer {
 pub struct WorkspaceAnalyzer {
     context: WorkspaceContext,
     storage: Arc<Mutex<DocumentStorage>>,
+    indexed: AsyncSignal,
     #[allow(clippy::type_complexity)]
     cache: RwLock<BTreeMap<PathBuf, Arc<Mutex<Option<Arc<AnalyzedFile>>>>>>,
 }
@@ -151,12 +181,17 @@ impl WorkspaceAnalyzer {
         Self {
             context: context.clone(),
             storage: storage.clone(),
+            indexed: AsyncSignal::new(),
             cache: Default::default(),
         }
     }
 
     pub fn context(&self) -> &WorkspaceContext {
         &self.context
+    }
+
+    pub fn indexed(&self) -> &AsyncSignal {
+        &self.indexed
     }
 
     pub fn cached_files_for_symbols(&self) -> Vec<Arc<AnalyzedFile>> {

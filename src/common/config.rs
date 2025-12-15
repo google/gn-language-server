@@ -14,6 +14,8 @@
 
 use std::path::PathBuf;
 
+use crate::analyzer::IndexingLevel;
+
 fn default_true() -> bool {
     true
 }
@@ -36,6 +38,17 @@ impl Default for Configurations {
             background_indexing: true,
             error_reporting: true,
             experimental: Default::default(),
+        }
+    }
+}
+
+impl Configurations {
+    pub fn indexing_level(&self) -> IndexingLevel {
+        match self.background_indexing {
+            false => IndexingLevel::Disabled,
+            true => IndexingLevel::Enabled {
+                parallel: self.experimental.parallel_indexing,
+            },
         }
     }
 }

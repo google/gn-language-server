@@ -20,7 +20,7 @@ use std::{
 };
 
 use crate::{
-    analyzer::Analyzer,
+    analyzer::{Analyzer, IndexingLevel},
     common::{storage::DocumentStorage, testutils::testdata, workspace::WorkspaceFinder},
     parser::Statement,
 };
@@ -28,7 +28,11 @@ use crate::{
 #[test]
 fn test_analyze_smoke() {
     let storage = Arc::new(Mutex::new(DocumentStorage::new()));
-    let analyzer = Analyzer::new(&storage, WorkspaceFinder::new(None));
+    let analyzer = Analyzer::new(
+        &storage,
+        WorkspaceFinder::new(None),
+        IndexingLevel::Disabled,
+    );
 
     let file = analyzer
         .analyze_file(&testdata("workspaces/smoke/BUILD.gn"), Instant::now())
@@ -53,7 +57,11 @@ fn test_analyze_smoke() {
 fn test_analyze_cycles() {
     let request_time = Instant::now();
     let storage = Arc::new(Mutex::new(DocumentStorage::new()));
-    let analyzer = Analyzer::new(&storage, WorkspaceFinder::new(None));
+    let analyzer = Analyzer::new(
+        &storage,
+        WorkspaceFinder::new(None),
+        IndexingLevel::Disabled,
+    );
 
     assert!(analyzer
         .analyze_file(&testdata("workspaces/cycles/ok1.gni"), request_time)
