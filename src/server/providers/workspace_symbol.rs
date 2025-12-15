@@ -16,7 +16,7 @@ use tower_lsp::lsp_types::{SymbolInformation, WorkspaceSymbolParams};
 
 use crate::{
     common::error::Result,
-    server::{symbols::collect_global_symbols, RequestContext},
+    server::{symbols::SymbolSet, RequestContext},
 };
 
 pub async fn workspace_symbol(
@@ -33,11 +33,11 @@ pub async fn workspace_symbol(
         return Ok(None);
     }
 
-    let symbols = collect_global_symbols(&context.analyzer).await;
+    let symbols = SymbolSet::global(&context.analyzer).await;
 
     let query = params.query.to_lowercase();
     let symbols = symbols
-        .into_iter()
+        .symbol_informations()
         .filter(|symbol| symbol.name.starts_with(&query))
         .collect();
 

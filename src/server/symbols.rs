@@ -12,74 +12,104 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+use std::sync::Arc;
+
 use either::Either;
 use tower_lsp::lsp_types::{Location, SymbolInformation, SymbolKind, Url};
 
-use crate::analyzer::{AnalyzedFile, Analyzer, WorkspaceAnalyzer};
+use crate::analyzer::{AnalyzedFile, Analyzer, Template, Variable, WorkspaceAnalyzer};
 
-pub async fn collect_global_symbols(analyzer: &Analyzer) -> Vec<SymbolInformation> {
-    let workspaces = analyzer.workspaces();
-
-    let mut symbols: Vec<SymbolInformation> = Vec::new();
-    for workspace in workspaces.into_values() {
-        symbols.extend(collect_workspace_symbols(&workspace).await);
-    }
-    symbols
-}
-
-pub async fn collect_workspace_symbols(workspace: &WorkspaceAnalyzer) -> Vec<SymbolInformation> {
-    let files = workspace.scan_files().await;
-    files
-        .into_iter()
-        .filter(|file| !file.external)
-        .flat_map(|file| extract_symbols(&file))
-        .collect()
-}
-
-fn extract_symbols(file: &AnalyzedFile) -> Vec<SymbolInformation> {
-    let mut symbols = Vec::new();
-    let uri = Url::from_file_path(&file.document.path).unwrap();
-
-    for (name, variable) in &file.exports.get().variables {
-        if let Some(assignment) = variable.assignments.first() {
-            #[allow(deprecated)]
-            symbols.push(SymbolInformation {
-                name: name.to_string(),
-                kind: if variable.is_args {
-                    SymbolKind::CONSTANT
-                } else {
-                    SymbolKind::VARIABLE
-                },
-                tags: None,
-                deprecated: None,
-                location: Location {
-                    uri: uri.clone(),
-                    range: assignment.document.line_index.range(
-                        match assignment.assignment_or_call {
-                            Either::Left(assignment) => assignment.span,
-                            Either::Right(call) => call.span,
-                        },
-                    ),
-                },
-                container_name: None,
-            });
+impl Variable<'_> {
+    #[allow(deprecated)]
+    fn as_symbol_information(&self) -> SymbolInformation {
+        let first_assignment = self.assignments.first().unwrap();
+        SymbolInformation {
+            name: first_assignment.primary_variable.as_str().to_string(),
+            kind: if self.is_args {
+                SymbolKind::CONSTANT
+            } else {
+                SymbolKind::VARIABLE
+            },
+            tags: None,
+            deprecated: None,
+            location: Location {
+                uri: Url::from_file_path(&first_assignment.document.path).unwrap(),
+                range: first_assignment.document.line_index.range(
+                    match first_assignment.assignment_or_call {
+                        Either::Left(assignment) => assignment.span,
+                        Either::Right(call) => call.span,
+                    },
+                ),
+            },
+            container_name: None,
         }
     }
+}
 
-    for (name, template) in &file.exports.get().templates {
-        #[allow(deprecated)]
-        symbols.push(SymbolInformation {
-            name: name.to_string(),
+impl Template<'_> {
+    #[allow(deprecated)]
+    fn as_symbol_information(&self) -> SymbolInformation {
+        SymbolInformation {
+            name: self.name.to_string(),
             kind: SymbolKind::FUNCTION,
             tags: None,
             deprecated: None,
             location: Location {
-                uri: uri.clone(),
-                range: template.document.line_index.range(template.call.span),
+                uri: Url::from_file_path(&self.document.path).unwrap(),
+                range: self.document.line_index.range(self.call.span),
             },
             container_name: None,
-        });
+        }
+    }
+}
+
+pub struct SymbolSet {
+    files: Vec<Arc<AnalyzedFile>>,
+}
+
+impl SymbolSet {
+    pub async fn global(analyzer: &Analyzer) -> Self {
+        let workspaces = analyzer.workspaces();
+
+        let mut files: Vec<_> = Vec::new();
+        for workspace in workspaces.into_values() {
+            files.extend(
+                workspace
+                    .scan_files()
+                    .await
+                    .into_iter()
+                    .filter(|file| !file.external),
+            );
+        }
+
+        Self { files }
     }
 
-    symbols
+    pub async fn workspace(workspace: &WorkspaceAnalyzer) -> Self {
+        let files: Vec<_> = workspace
+            .scan_files()
+            .await
+            .into_iter()
+            .filter(|file| !file.external)
+            .collect();
+        Self { files }
+    }
+
+    pub fn symbol_informations(&self) -> impl Iterator<Item = SymbolInformation> + '_ {
+        self.files.iter().flat_map(|file| {
+            let variables = file
+                .exports
+                .get()
+                .variables
+                .values()
+                .map(|variable| variable.as_symbol_information());
+            let templates = file
+                .exports
+                .get()
+                .templates
+                .values()
+                .map(|template| template.as_symbol_information());
+            variables.chain(templates)
+        })
+    }
 }

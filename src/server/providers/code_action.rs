@@ -24,8 +24,8 @@ use crate::{
     common::{error::Result, utils::format_path},
     diagnostics::{DiagnosticDataUndefined, DIAGNOSTIC_CODE_UNDEFINED},
     server::{
-        imports::create_import_edit, providers::utils::get_text_document_path,
-        symbols::collect_workspace_symbols, RequestContext,
+        imports::create_import_edit, providers::utils::get_text_document_path, symbols::SymbolSet,
+        RequestContext,
     },
 };
 
@@ -50,10 +50,10 @@ async fn compute_import_actions(
         return Vec::new();
     };
     let current_file = workspace.analyze_file(path, context.request_time);
-    let symbols = collect_workspace_symbols(&workspace).await;
+    let symbols = SymbolSet::workspace(&workspace).await;
 
     let imports: Vec<String> = symbols
-        .into_iter()
+        .symbol_informations()
         .filter(|symbol| {
             symbol.name == name
                 && matches!(symbol.kind, SymbolKind::VARIABLE | SymbolKind::CONSTANT)
