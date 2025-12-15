@@ -41,7 +41,19 @@ pub async fn run_bench(workspace_root: &Path) {
     for path in find_gn_in_workspace_for_scan(workspace_root) {
         let analyzer = analyzer.clone();
         tasks.push(tokio::spawn(async move {
-            analyzer.analyze_file(&path, start_time).ok();
+            if let Ok(file) = analyzer.analyze_file(&path, start_time) {
+                let diagnostics =
+                    crate::diagnostics::compute_diagnostics(&file, &analyzer, true, start_time);
+                for d in diagnostics {
+                    println!(
+                        "{}:{}:{}: {}",
+                        path.display(),
+                        d.range.start.line + 1,
+                        d.range.start.character + 1,
+                        d.message
+                    );
+                }
+            }
             eprint!(".");
         }));
         count += 1;

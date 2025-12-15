@@ -2,9 +2,13 @@
 
 ## 1.10.0 (unreleased)
 
+- Update GN base version to support `path_exists`
+- Fix crash on completing foreach variables
 - Overhaul environment analysis to properly fix the incorrectness problem on circular imports
 - Experimental support of code lens for targets (behind an experimental setting)
-- Added build attestation
+- Experimental support of code actions to import undefined variables (behind an experimental setting)
+- Improve workspace scan efficiency
+- Add build attestation
 
 ## 1.8.0 (2025-10-01)
 
