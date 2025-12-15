@@ -15,8 +15,6 @@
 #[cfg(test)]
 use std::path::Path;
 use std::{
-    collections::BTreeMap,
-    path::PathBuf,
     sync::{Arc, Mutex, OnceLock},
     time::Instant,
 };
@@ -40,17 +38,17 @@ use tower_lsp::{
 use crate::{
     analyzer::Analyzer,
     common::{
-        client::TestableClient, error::RpcResult, storage::DocumentStorage, utils::AsyncSignal,
+        client::TestableClient, error::RpcResult, storage::DocumentStorage,
         workspace::WorkspaceFinder,
     },
 };
 
 mod providers;
+mod symbols;
 
 struct ServerContext {
     pub storage: Arc<Mutex<DocumentStorage>>,
     pub analyzer: OnceLock<Arc<Analyzer>>,
-    pub indexed: Arc<Mutex<BTreeMap<PathBuf, AsyncSignal>>>,
     pub client: TestableClient,
 }
 
@@ -59,7 +57,6 @@ impl ServerContext {
         Self {
             storage,
             analyzer: OnceLock::new(),
-            indexed: Default::default(),
             client,
         }
     }
@@ -78,7 +75,6 @@ impl ServerContext {
         Self {
             storage,
             analyzer,
-            indexed: Default::default(),
             client: TestableClient::new_for_testing(),
         }
     }
@@ -87,7 +83,6 @@ impl ServerContext {
         RequestContext {
             storage: self.storage.clone(),
             analyzer: self.analyzer.get().unwrap().clone(),
-            indexed: self.indexed.clone(),
             client: self.client.clone(),
             request_time: Instant::now(),
         }
@@ -98,7 +93,6 @@ impl ServerContext {
 pub struct RequestContext {
     pub storage: Arc<Mutex<DocumentStorage>>,
     pub analyzer: Arc<Analyzer>,
-    pub indexed: Arc<Mutex<BTreeMap<PathBuf, AsyncSignal>>>,
     pub client: TestableClient,
     pub request_time: Instant,
 }

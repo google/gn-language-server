@@ -12,12 +12,12 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use std::collections::HashSet;
+use tower_lsp::lsp_types::{SymbolInformation, WorkspaceSymbolParams};
 
-use either::Either;
-use tower_lsp::lsp_types::{Location, SymbolInformation, SymbolKind, Url, WorkspaceSymbolParams};
-
-use crate::{analyzer::AnalyzedFile, common::error::Result, server::RequestContext};
+use crate::{
+    common::error::Result,
+    server::{symbols::collect_global_symbols, RequestContext},
+};
 
 pub async fn workspace_symbol(
     context: &RequestContext,
@@ -33,90 +33,13 @@ pub async fn workspace_symbol(
         return Ok(None);
     }
 
-    let mut symbols = Vec::new();
+    let symbols = collect_global_symbols(&context.analyzer).await;
+
     let query = params.query.to_lowercase();
-    let workspaces = context.analyzer.workspaces();
-
-    for (workspace_root, workspace) in workspaces {
-        let signal = context
-            .indexed
-            .lock()
-            .unwrap()
-            .get(&workspace_root)
-            .cloned();
-        if let Some(signal) = signal {
-            signal.wait().await;
-        }
-
-        let files = workspace.cached_files_for_symbols();
-        for file in files {
-            symbols.extend(extract_symbols(&file, &query));
-        }
-    }
-
-    // If any occurrence of a variable is within declare_args, exclude other
-    // occurrences.
-    let args: HashSet<String> = symbols
-        .iter()
-        .filter_map(|symbol| (symbol.kind == SymbolKind::CONSTANT).then_some(symbol.name.clone()))
-        .collect();
-
     let symbols = symbols
         .into_iter()
-        .filter(|symbol| symbol.kind == SymbolKind::CONSTANT || !args.contains(&symbol.name))
+        .filter(|symbol| symbol.name.starts_with(&query))
         .collect();
 
     Ok(Some(symbols))
-}
-
-#[allow(deprecated)]
-fn extract_symbols(file: &AnalyzedFile, query: &str) -> Vec<SymbolInformation> {
-    let mut symbols = Vec::new();
-    let uri = Url::from_file_path(&file.document.path).unwrap();
-
-    for (name, variable) in &file.exports.get().variables {
-        if !name.to_lowercase().contains(query) {
-            continue;
-        }
-        if let Some(assignment) = variable.assignments.first() {
-            let span = match assignment.assignment_or_call {
-                Either::Left(assignment) => assignment.span,
-                Either::Right(call) => call.span,
-            };
-            symbols.push(SymbolInformation {
-                name: name.to_string(),
-                kind: if variable.is_args {
-                    SymbolKind::CONSTANT
-                } else {
-                    SymbolKind::VARIABLE
-                },
-                tags: None,
-                deprecated: None,
-                location: Location {
-                    uri: uri.clone(),
-                    range: assignment.document.line_index.range(span),
-                },
-                container_name: None,
-            });
-        }
-    }
-
-    for (name, template) in &file.exports.get().templates {
-        if !name.to_lowercase().contains(query) {
-            continue;
-        }
-        symbols.push(SymbolInformation {
-            name: name.to_string(),
-            kind: SymbolKind::FUNCTION,
-            tags: None,
-            deprecated: None,
-            location: Location {
-                uri: uri.clone(),
-                range: template.document.line_index.range(template.call.span),
-            },
-            container_name: None,
-        });
-    }
-
-    symbols
 }
