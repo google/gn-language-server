@@ -54,36 +54,17 @@ pub type TemplateMap<'p> = StrKeyedMap<'p, Template<'p>>;
 pub type TargetMap<'p> = StrKeyedMap<'p, Target<'p>>;
 
 #[derive(Default)]
-pub struct MutableFileExports<'p> {
-    pub variables: VariableMap<'p>,
-    pub templates: TemplateMap<'p>,
-    pub targets: TargetMap<'p>,
-    pub children: Vec<PathBuf>,
-}
-
-impl MutableFileExports<'_> {
-    pub fn new() -> Self {
-        Default::default()
-    }
-}
-
-impl<'p> MutableFileExports<'p> {
-    pub fn finalize(self) -> FileExports<'p> {
-        FileExports {
-            variables: self.variables,
-            templates: self.templates,
-            targets: self.targets,
-            children: self.children,
-        }
-    }
-}
-
-#[derive(Default)]
 pub struct FileExports<'p> {
     pub variables: VariableMap<'p>,
     pub templates: TemplateMap<'p>,
     pub targets: TargetMap<'p>,
     pub children: Vec<PathBuf>,
+}
+
+impl FileExports<'_> {
+    pub fn new() -> Self {
+        Default::default()
+    }
 }
 
 self_cell!(

@@ -43,8 +43,8 @@ pub use data::{
     AnalyzedAssignment, AnalyzedBlock, AnalyzedBuiltinCall, AnalyzedCondition, AnalyzedDeclareArgs,
     AnalyzedFile, AnalyzedForeach, AnalyzedForwardVariablesFrom, AnalyzedImport, AnalyzedLink,
     AnalyzedStatement, AnalyzedTarget, AnalyzedTemplate, Environment, FileExports,
-    MutableFileExports, OwnedAnalyzedBlock, OwnedEnvironment, OwnedFileExports, OwnedLinkIndex,
-    Target, Template, Variable, VariableAssignment, WorkspaceContext,
+    OwnedAnalyzedBlock, OwnedEnvironment, OwnedFileExports, OwnedLinkIndex, Target, Template,
+    Variable, VariableAssignment, WorkspaceContext,
 };
 
 pub use toplevel::TopLevelStatementsExt;
@@ -565,7 +565,7 @@ impl WorkspaceAnalyzer {
     }
 
     fn analyze_exports<'p>(&self, block: &'p Block<'p>, document: &'p Document) -> FileExports<'p> {
-        let mut exports = MutableFileExports::new();
+        let mut exports = FileExports::new();
         let mut declare_args_stack: Vec<&Call> = Vec::new();
 
         for statement in block.top_level_statements() {
@@ -677,6 +677,6 @@ impl WorkspaceAnalyzer {
             }
         }
 
-        exports.finalize()
+        exports
     }
 }
