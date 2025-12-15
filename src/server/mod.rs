@@ -22,14 +22,16 @@ use std::{
 use tokio::spawn;
 use tower_lsp::{
     lsp_types::{
-        CodeLens, CodeLensOptions, CodeLensParams, CompletionOptions, CompletionParams,
-        CompletionResponse, DidChangeConfigurationParams, DidChangeTextDocumentParams,
-        DidCloseTextDocumentParams, DidOpenTextDocumentParams, DocumentFormattingParams,
-        DocumentLink, DocumentLinkOptions, DocumentLinkParams, DocumentSymbolParams,
-        DocumentSymbolResponse, GotoDefinitionParams, GotoDefinitionResponse, Hover, HoverParams,
-        HoverProviderCapability, InitializeParams, InitializeResult, InitializedParams, Location,
-        MessageType, OneOf, ReferenceParams, ServerCapabilities, SymbolInformation,
-        TextDocumentSyncCapability, TextDocumentSyncKind, TextEdit, Url, WorkspaceSymbolParams,
+        CodeActionKind, CodeActionOptions, CodeActionParams, CodeActionProviderCapability,
+        CodeActionResponse, CodeLens, CodeLensOptions, CodeLensParams, CompletionOptions,
+        CompletionParams, CompletionResponse, DidChangeConfigurationParams,
+        DidChangeTextDocumentParams, DidCloseTextDocumentParams, DidOpenTextDocumentParams,
+        DocumentFormattingParams, DocumentLink, DocumentLinkOptions, DocumentLinkParams,
+        DocumentSymbolParams, DocumentSymbolResponse, GotoDefinitionParams, GotoDefinitionResponse,
+        Hover, HoverParams, HoverProviderCapability, InitializeParams, InitializeResult,
+        InitializedParams, Location, MessageType, OneOf, ReferenceParams, ServerCapabilities,
+        SymbolInformation, TextDocumentSyncCapability, TextDocumentSyncKind, TextEdit, Url,
+        WorkspaceSymbolParams,
     },
     LanguageServer, LspService, Server,
 };
@@ -171,6 +173,13 @@ impl LanguageServer for Backend {
                 code_lens_provider: Some(CodeLensOptions {
                     resolve_provider: Some(true),
                 }),
+                code_action_provider: Some(CodeActionProviderCapability::Options(
+                    CodeActionOptions {
+                        code_action_kinds: Some(vec![CodeActionKind::QUICKFIX]),
+                        resolve_provider: Some(true),
+                        ..Default::default()
+                    },
+                )),
                 ..Default::default()
             },
             ..Default::default()
@@ -275,6 +284,10 @@ impl LanguageServer for Backend {
 
     async fn code_lens_resolve(&self, partial_lens: CodeLens) -> RpcResult<CodeLens> {
         Ok(providers::code_lens::code_lens_resolve(&self.context.request(), partial_lens).await?)
+    }
+
+    async fn code_action(&self, params: CodeActionParams) -> RpcResult<Option<CodeActionResponse>> {
+        Ok(providers::code_action::code_action(&self.context.request(), params).await?)
     }
 }
 

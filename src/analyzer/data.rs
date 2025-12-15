@@ -450,6 +450,7 @@ pub struct AnalyzedForwardVariablesFrom<'p> {
 #[derive(Clone)]
 pub struct AnalyzedImport<'p> {
     pub call: &'p Call<'p>,
+    pub name: &'p str,
     pub path: PathBuf,
 }
 

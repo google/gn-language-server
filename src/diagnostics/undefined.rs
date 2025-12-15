@@ -15,7 +15,7 @@
 use std::{collections::HashSet, sync::OnceLock, time::Instant};
 
 use either::Either;
-use tower_lsp::lsp_types::{Diagnostic, DiagnosticSeverity};
+use tower_lsp::lsp_types::{Diagnostic, DiagnosticSeverity, NumberOrString};
 
 use crate::{
     analyzer::{
@@ -23,6 +23,7 @@ use crate::{
         WorkspaceAnalyzer,
     },
     common::builtins::{BUILTINS, DEFINED},
+    diagnostics::{DIAGNOSTIC_CODE_UNDEFINED, DiagnosticDataUndefined},
     parser::{Expr, Identifier, LValue, PrimaryExpr},
 };
 
@@ -94,7 +95,16 @@ impl<'p> Identifier<'p> {
             diagnostics.push(Diagnostic {
                 range: file.document.line_index.range(self.span),
                 severity: Some(DiagnosticSeverity::ERROR),
+                code: Some(NumberOrString::String(
+                    DIAGNOSTIC_CODE_UNDEFINED.to_string(),
+                )),
                 message: format!("{} not defined", self.name),
+                data: Some(
+                    serde_json::to_value(DiagnosticDataUndefined {
+                        name: self.name.to_string(),
+                    })
+                    .unwrap(),
+                ),
                 ..Default::default()
             })
         }

@@ -24,6 +24,13 @@ use crate::{
 mod syntax;
 mod undefined;
 
+pub const DIAGNOSTIC_CODE_UNDEFINED: &str = "undefined";
+
+#[derive(serde::Serialize, serde::Deserialize)]
+pub struct DiagnosticDataUndefined {
+    pub name: String,
+}
+
 pub fn compute_diagnostics(
     file: &AnalyzedFile,
     analyzer: &Analyzer,

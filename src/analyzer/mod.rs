@@ -401,7 +401,7 @@ impl WorkspaceAnalyzer {
                     let path = self
                         .context
                         .resolve_path(name, document.path.parent().unwrap());
-                    return AnalyzedStatement::Import(Box::new(AnalyzedImport { call, path }));
+                    return AnalyzedStatement::Import(Box::new(AnalyzedImport { call, name, path }));
                 }
                 None
             }

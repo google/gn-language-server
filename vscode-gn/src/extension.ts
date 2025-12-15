@@ -25,6 +25,7 @@ import {
   Position,
   ResponseError,
   ServerOptions,
+  TextEdit,
   TransportKind,
 } from 'vscode-languageclient/node';
 
@@ -153,6 +154,43 @@ async function copyTargetLabel(label: string): Promise<void> {
   void vscode.window.showInformationMessage(`Copied: ${label}`);
 }
 
+interface ChooseImportCandidatesData {
+  candidates: ImportCandidate[];
+}
+
+interface ImportCandidate {
+  import: string;
+  edit: TextEdit;
+}
+
+async function chooseImportCandidates(
+  data: ChooseImportCandidatesData
+): Promise<void> {
+  const items = data.candidates.map(candidate => ({
+    label: `Import \`${candidate.import}\``,
+    edit: candidate.edit,
+  }));
+  const selectedItem = await vscode.window.showQuickPick(items);
+  if (selectedItem && vscode.window.activeTextEditor) {
+    const workspaceEdit = new vscode.WorkspaceEdit();
+    workspaceEdit.replace(
+      vscode.window.activeTextEditor.document.uri,
+      new vscode.Range(
+        new vscode.Position(
+          selectedItem.edit.range.start.line,
+          selectedItem.edit.range.start.character
+        ),
+        new vscode.Position(
+          selectedItem.edit.range.end.line,
+          selectedItem.edit.range.end.character
+        )
+      ),
+      selectedItem.edit.newText
+    );
+    await vscode.workspace.applyEdit(workspaceEdit);
+  }
+}
+
 class GnLanguageClient extends LanguageClient {
   constructor(context: vscode.ExtensionContext, output: vscode.OutputChannel) {
     const clientOptions: LanguageClientOptions = {
@@ -239,7 +277,11 @@ export function activate(context: vscode.ExtensionContext): void {
   reportAsyncError(output, updateActiveEditorContext());
 
   context.subscriptions.push(
-    vscode.commands.registerCommand('gn.openBuildFile', openBuildFile)
+    vscode.commands.registerCommand('gn.openBuildFile', openBuildFile),
+    vscode.commands.registerCommand(
+      'gn.chooseImportCandidates',
+      chooseImportCandidates
+    )
   );
 
   reportAsyncError(output, startLanguageServer(context, output));
