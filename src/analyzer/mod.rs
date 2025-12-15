@@ -586,7 +586,9 @@ impl WorkspaceAnalyzer {
                         exports
                             .variables
                             .entry(identifier.name)
-                            .or_insert_with(|| Variable::new(!declare_args_stack.is_empty()))
+                            .or_insert_with(|| {
+                                Variable::new(identifier.name, !declare_args_stack.is_empty())
+                            })
                             .assignments
                             .push(VariableAssignment {
                                 document,
@@ -645,7 +647,7 @@ impl WorkspaceAnalyzer {
                                             .variables
                                             .entry(name)
                                             .or_insert_with(|| {
-                                                Variable::new(!declare_args_stack.is_empty())
+                                                Variable::new(name, !declare_args_stack.is_empty())
                                             })
                                             .assignments
                                             .push(VariableAssignment {

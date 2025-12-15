@@ -60,4 +60,5 @@ pub struct ExperimentalConfigurations {
     pub workspace_symbols: bool,
     pub target_lens: bool,
     pub parallel_indexing: bool,
+    pub workspace_completion: bool,
 }

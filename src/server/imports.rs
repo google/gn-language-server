@@ -12,9 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use std::collections::HashMap;
-
-use tower_lsp::lsp_types::{Range, TextEdit, Url, WorkspaceEdit};
+use tower_lsp::lsp_types::{Range, TextEdit};
 
 use crate::analyzer::{AnalyzedFile, AnalyzedStatement};
 
@@ -25,7 +23,7 @@ fn get_import<'p>(statement: &AnalyzedStatement<'p>) -> Option<&'p str> {
     }
 }
 
-pub fn create_import_edit(current_file: &AnalyzedFile, import: &str) -> WorkspaceEdit {
+pub fn create_import_edit(current_file: &AnalyzedFile, import: &str) -> TextEdit {
     // Find the first top-level import block.
     let first_import_block: Vec<_> = current_file
         .analyzed_root
@@ -54,14 +52,8 @@ pub fn create_import_edit(current_file: &AnalyzedFile, import: &str) -> Workspac
 
     let insert_pos = current_file.document.line_index.position(insert_offset);
 
-    WorkspaceEdit {
-        changes: Some(HashMap::from([(
-            Url::from_file_path(&current_file.document.path).unwrap(),
-            vec![TextEdit {
-                range: Range::new(insert_pos, insert_pos),
-                new_text: format!("{prefix}import(\"{import}\"){suffix}"),
-            }],
-        )])),
-        ..Default::default()
+    TextEdit {
+        range: Range::new(insert_pos, insert_pos),
+        new_text: format!("{prefix}import(\"{import}\"){suffix}"),
     }
 }

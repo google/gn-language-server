@@ -224,7 +224,12 @@ impl<'p> AnalyzedBlock<'p> {
                     let assignment = assignment.as_variable_assignment(self.document);
                     variables
                         .entry(assignment.primary_variable.as_str())
-                        .or_insert_with(|| Variable::new(!declare_args_stack.is_empty()))
+                        .or_insert_with(|| {
+                            Variable::new(
+                                assignment.primary_variable.as_str(),
+                                !declare_args_stack.is_empty(),
+                            )
+                        })
                         .assignments
                         .push(assignment);
                 }
@@ -232,7 +237,12 @@ impl<'p> AnalyzedBlock<'p> {
                     let assignment = foreach.as_variable_assignment(self.document);
                     variables
                         .entry(assignment.primary_variable.as_str())
-                        .or_insert_with(|| Variable::new(!declare_args_stack.is_empty()))
+                        .or_insert_with(|| {
+                            Variable::new(
+                                assignment.primary_variable.as_str(),
+                                !declare_args_stack.is_empty(),
+                            )
+                        })
                         .assignments
                         .push(assignment);
                 }
@@ -240,7 +250,12 @@ impl<'p> AnalyzedBlock<'p> {
                     for assignment in forward_variables_from.as_variable_assignment(self.document) {
                         variables
                             .entry(assignment.primary_variable.as_str())
-                            .or_insert_with(|| Variable::new(!declare_args_stack.is_empty()))
+                            .or_insert_with(|| {
+                                Variable::new(
+                                    assignment.primary_variable.as_str(),
+                                    !declare_args_stack.is_empty(),
+                                )
+                            })
                             .assignments
                             .push(assignment);
                     }
@@ -526,13 +541,15 @@ impl<'p> AnalyzedTemplate<'p> {
 
 #[derive(Clone, Debug)]
 pub struct Variable<'p> {
+    pub name: &'p str,
     pub assignments: Vec<VariableAssignment<'p>>,
     pub is_args: bool,
 }
 
-impl Variable<'_> {
-    pub fn new(is_args: bool) -> Self {
+impl<'p> Variable<'p> {
+    pub fn new(name: &'p str, is_args: bool) -> Self {
         Self {
+            name,
             assignments: Vec::new(),
             is_args,
         }

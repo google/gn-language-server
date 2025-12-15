@@ -24,7 +24,7 @@ impl Variable<'_> {
     fn as_symbol_information(&self) -> SymbolInformation {
         let first_assignment = self.assignments.first().unwrap();
         SymbolInformation {
-            name: first_assignment.primary_variable.as_str().to_string(),
+            name: self.name.to_string(),
             kind: if self.is_args {
                 SymbolKind::CONSTANT
             } else {
@@ -111,5 +111,17 @@ impl SymbolSet {
                 .map(|template| template.as_symbol_information());
             variables.chain(templates)
         })
+    }
+
+    pub fn variables(&self) -> impl Iterator<Item = &Variable<'_>> + '_ {
+        self.files
+            .iter()
+            .flat_map(|file| file.exports.get().variables.values())
+    }
+
+    pub fn templates(&self) -> impl Iterator<Item = &Template<'_>> + '_ {
+        self.files
+            .iter()
+            .flat_map(|file| file.exports.get().templates.values())
     }
 }

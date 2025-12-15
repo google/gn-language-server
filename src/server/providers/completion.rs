@@ -12,19 +12,22 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use std::{path::Path, sync::Arc};
+use std::{collections::HashSet, path::Path, sync::Arc};
 
 use itertools::Itertools;
 use tower_lsp::lsp_types::{
-    Command, CompletionItem, CompletionItemKind, CompletionParams, CompletionResponse,
-    Documentation, MarkupContent, MarkupKind,
+    Command, CompletionItem, CompletionItemKind, CompletionItemLabelDetails, CompletionParams,
+    CompletionResponse, Documentation, MarkupContent, MarkupKind,
 };
 
 use crate::{
-    analyzer::AnalyzedFile,
-    common::{builtins::BUILTINS, error::Result},
+    analyzer::{AnalyzedFile, Template, Variable, WorkspaceAnalyzer},
+    common::{builtins::BUILTINS, error::Result, utils::format_path},
     parser::{Block, Node},
-    server::{providers::utils::get_text_document_path, RequestContext},
+    server::{
+        imports::create_import_edit, providers::utils::get_text_document_path, symbols::SymbolSet,
+        RequestContext,
+    },
 };
 
 fn get_prefix_string_for_completion<'i>(ast: &Block<'i>, offset: usize) -> Option<&'i str> {
@@ -84,10 +87,64 @@ fn is_after_dot(data: &str, offset: usize) -> bool {
     false
 }
 
-fn build_identifier_completions(
+impl Variable<'_> {
+    fn as_completion_item(&self, current_file: &AnalyzedFile, need_import: bool) -> CompletionItem {
+        let first_assignment = self.assignments.first().unwrap();
+        let import_path = format_path(
+            &first_assignment.document.path,
+            &current_file.workspace_root,
+        );
+        let additional_text_edits = if need_import {
+            Some(vec![create_import_edit(current_file, &import_path)])
+        } else {
+            None
+        };
+        CompletionItem {
+            label: self.name.to_string(),
+            kind: Some(CompletionItemKind::VARIABLE),
+            documentation: Some(Documentation::MarkupContent(MarkupContent {
+                kind: MarkupKind::Markdown,
+                value: self.format_help(&current_file.workspace_root).join("\n\n"),
+            })),
+            label_details: Some(CompletionItemLabelDetails {
+                detail: None,
+                description: Some(import_path),
+            }),
+            additional_text_edits,
+            ..Default::default()
+        }
+    }
+}
+
+impl Template<'_> {
+    fn as_completion_item(&self, current_file: &AnalyzedFile, need_import: bool) -> CompletionItem {
+        let additional_text_edits = if need_import {
+            Some(vec![create_import_edit(
+                current_file,
+                &format_path(&self.document.path, &current_file.workspace_root),
+            )])
+        } else {
+            None
+        };
+        CompletionItem {
+            label: self.name.to_string(),
+            kind: Some(CompletionItemKind::FUNCTION),
+            documentation: Some(Documentation::MarkupContent(MarkupContent {
+                kind: MarkupKind::Markdown,
+                value: self.format_help(&current_file.workspace_root).join("\n\n"),
+            })),
+            additional_text_edits,
+            ..Default::default()
+        }
+    }
+}
+
+async fn build_identifier_completions(
     context: &RequestContext,
     current_file: &Arc<AnalyzedFile>,
+    workspace: &WorkspaceAnalyzer,
     offset: usize,
+    workspace_completion: bool,
 ) -> Result<Vec<CompletionItem>> {
     // Handle identifier completions.
     // If the cursor is after a dot, we can't make suggestions.
@@ -95,37 +152,41 @@ fn build_identifier_completions(
         return Ok(Vec::new());
     }
 
-    let environment = context
-        .analyzer
-        .analyze_at(current_file, offset, context.request_time)?;
+    let environment = workspace.analyze_at(current_file, offset, context.request_time);
+    let symbols = SymbolSet::workspace(workspace).await;
 
-    // Enumerate variables at the current scope.
-    let variable_items = environment.get().variables.iter().map(|(name, variable)| {
-        let paragraphs = variable.format_help(&current_file.workspace_root);
-        CompletionItem {
-            label: name.to_string(),
-            kind: Some(CompletionItemKind::VARIABLE),
-            documentation: Some(Documentation::MarkupContent(MarkupContent {
-                kind: MarkupKind::Markdown,
-                value: paragraphs.join("\n\n"),
-            })),
-            ..Default::default()
-        }
-    });
+    // Enumerate variables/templates already in the scope.
+    let known_variables: HashSet<&str> = environment.get().variables.keys().copied().collect();
+    let known_templates: HashSet<&str> = environment.get().templates.keys().copied().collect();
 
-    // Enumerate templates defined at the current position.
-    let template_items = environment.get().templates.values().map(|template| {
-        let paragraphs = template.format_help(&current_file.workspace_root);
-        CompletionItem {
-            label: template.name.to_string(),
-            kind: Some(CompletionItemKind::FUNCTION),
-            documentation: Some(Documentation::MarkupContent(MarkupContent {
-                kind: MarkupKind::Markdown,
-                value: paragraphs.join("\n\n"),
-            })),
-            ..Default::default()
-        }
-    });
+    // Enumerate local variables/templates.
+    let local_variable_items = environment
+        .get()
+        .variables
+        .values()
+        .map(|variable| variable.as_completion_item(current_file, false));
+    let local_template_items = environment
+        .get()
+        .templates
+        .values()
+        .map(|template| template.as_completion_item(current_file, false));
+
+    // Enumerate workspace variables/templates.
+    let workspace_items: Vec<_> = if workspace_completion {
+        let workspace_variable_items = symbols
+            .variables()
+            .filter(|variable| !known_variables.contains(variable.name))
+            .map(|variable| variable.as_completion_item(current_file, true));
+        let workspace_template_items = symbols
+            .templates()
+            .filter(|template| !known_templates.contains(template.name))
+            .map(|template| template.as_completion_item(current_file, true));
+        workspace_variable_items
+            .chain(workspace_template_items)
+            .collect()
+    } else {
+        Vec::new()
+    };
 
     // Enumerate builtins.
     let builtin_function_items = BUILTINS
@@ -163,8 +224,9 @@ fn build_identifier_completions(
         ..Default::default()
     });
 
-    Ok(variable_items
-        .chain(template_items)
+    Ok(local_variable_items
+        .chain(local_template_items)
+        .chain(workspace_items)
         .chain(builtin_function_items)
         .chain(builtin_variable_items)
         .chain(keyword_items)
@@ -175,8 +237,10 @@ pub async fn completion(
     context: &RequestContext,
     params: CompletionParams,
 ) -> Result<Option<CompletionResponse>> {
+    let config = context.client.configurations().await;
     let path = get_text_document_path(&params.text_document_position.text_document)?;
-    let current_file = context.analyzer.analyze_file(&path, context.request_time)?;
+    let workspace = context.analyzer.workspace_for(&path)?;
+    let current_file = workspace.analyze_file(&path, context.request_time);
 
     let offset = current_file
         .document
@@ -200,7 +264,14 @@ pub async fn completion(
     }
 
     // Handle identifier completions.
-    let items = build_identifier_completions(context, &current_file, offset)?;
+    let items = build_identifier_completions(
+        context,
+        &current_file,
+        &workspace,
+        offset,
+        config.experimental.workspace_completion,
+    )
+    .await?;
     Ok(Some(CompletionResponse::Array(items)))
 }
 

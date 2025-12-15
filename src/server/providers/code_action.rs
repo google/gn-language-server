@@ -12,12 +12,12 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use std::path::Path;
+use std::{collections::HashMap, path::Path};
 
 use itertools::Itertools;
 use tower_lsp::lsp_types::{
     CodeAction, CodeActionKind, CodeActionOrCommand, CodeActionParams, CodeActionResponse, Command,
-    Diagnostic, NumberOrString, SymbolKind, WorkspaceEdit,
+    Diagnostic, NumberOrString, SymbolKind, Url, WorkspaceEdit,
 };
 
 use crate::{
@@ -75,7 +75,13 @@ async fn compute_import_actions(
             title: format!("Import `{name}` from `{only_import}`"),
             kind: Some(CodeActionKind::QUICKFIX),
             diagnostics: Some(vec![diagnostic.clone()]),
-            edit: Some(create_import_edit(&current_file, only_import)),
+            edit: Some(WorkspaceEdit {
+                changes: Some(HashMap::from([(
+                    Url::from_file_path(&current_file.document.path).unwrap(),
+                    vec![create_import_edit(&current_file, only_import)],
+                )])),
+                ..Default::default()
+            }),
             command: None,
             is_preferred: Some(true),
             ..Default::default()
@@ -87,7 +93,13 @@ async fn compute_import_actions(
             .iter()
             .map(|import| ImportCandidate {
                 import: import.clone(),
-                edit: create_import_edit(&current_file, import),
+                edit: WorkspaceEdit {
+                    changes: Some(HashMap::from([(
+                        Url::from_file_path(&current_file.document.path).unwrap(),
+                        vec![create_import_edit(&current_file, import)],
+                    )])),
+                    ..Default::default()
+                },
             })
             .collect(),
     };
