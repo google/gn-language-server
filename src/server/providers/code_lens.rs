@@ -164,3 +164,131 @@ pub async fn code_lens_resolve(
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use itertools::Itertools;
+    use serde_json::json;
+    use tower_lsp::lsp_types::{Location, Position, TextDocumentIdentifier, Url};
+
+    use crate::common::testutils::testdata;
+
+    use super::*;
+
+    #[tokio::test]
+    async fn test_smoke() {
+        let path = testdata("workspaces/code_lens/BUILD.gn");
+        let uri = Url::from_file_path(&path).unwrap();
+
+        let items = code_lens(
+            &RequestContext::new_for_testing(Some(&testdata("workspaces/code_lens"))),
+            CodeLensParams {
+                text_document: TextDocumentIdentifier {
+                    uri: Url::from_file_path(&path).unwrap(),
+                },
+                work_done_progress_params: Default::default(),
+                partial_result_params: Default::default(),
+            },
+        )
+        .await
+        .unwrap()
+        .unwrap();
+
+        let items: Vec<_> = items
+            .into_iter()
+            .sorted_by_key(|item| {
+                (
+                    item.range.start.line,
+                    item.command.as_ref().map(|command| command.title.clone()),
+                )
+            })
+            .collect();
+
+        fn make_position(line: u32, character: u32) -> Position {
+            Position::new(line, character)
+        }
+        fn make_range(
+            start_line: u32,
+            start_character: u32,
+            end_line: u32,
+            end_character: u32,
+        ) -> Range {
+            Range::new(
+                make_position(start_line, start_character),
+                make_position(end_line, end_character),
+            )
+        }
+        assert_eq!(
+            items,
+            [
+                CodeLens {
+                    range: make_range(16, 0, 16, 20),
+                    command: Some(Command {
+                        title: "2 references".to_string(),
+                        command: "gn.showTargetReferences".to_string(),
+                        arguments: Some(vec![
+                            serde_json::to_value(make_position(16, 0)).unwrap(),
+                            serde_json::to_value([
+                                Location::new(uri.clone(), make_range(19, 11, 19, 17)),
+                                Location::new(uri.clone(), make_range(23, 11, 23, 17)),
+                            ])
+                            .unwrap()
+                        ]),
+                    }),
+                    data: None,
+                },
+                CodeLens {
+                    range: make_range(16, 0, 16, 20),
+                    command: Some(Command {
+                        title: "copy label".to_string(),
+                        command: "gn.copyTargetLabel".to_string(),
+                        arguments: Some(vec![json!("//:lib")]),
+                    }),
+                    data: None,
+                },
+                CodeLens {
+                    range: make_range(18, 0, 20, 1),
+                    command: Some(Command {
+                        title: "No references".to_string(),
+                        command: "gn.showTargetReferences".to_string(),
+                        arguments: Some(vec![
+                            serde_json::to_value(make_position(18, 0)).unwrap(),
+                            json!([])
+                        ]),
+                    }),
+                    data: None,
+                },
+                CodeLens {
+                    range: make_range(18, 0, 20, 1),
+                    command: Some(Command {
+                        title: "copy label".to_string(),
+                        command: "gn.copyTargetLabel".to_string(),
+                        arguments: Some(vec![json!("//:exe")]),
+                    }),
+                    data: None,
+                },
+                CodeLens {
+                    range: make_range(22, 0, 24, 1),
+                    command: Some(Command {
+                        title: "No references".to_string(),
+                        command: "gn.showTargetReferences".to_string(),
+                        arguments: Some(vec![
+                            serde_json::to_value(make_position(22, 0)).unwrap(),
+                            json!([])
+                        ]),
+                    }),
+                    data: None,
+                },
+                CodeLens {
+                    range: make_range(22, 0, 24, 1),
+                    command: Some(Command {
+                        title: "copy label".to_string(),
+                        command: "gn.copyTargetLabel".to_string(),
+                        arguments: Some(vec![json!("//:test")]),
+                    }),
+                    data: None,
+                },
+            ]
+        )
+    }
+}
