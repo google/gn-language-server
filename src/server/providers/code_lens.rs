@@ -122,18 +122,19 @@ pub async fn code_lens(
 
     lens.extend(targets.iter().map(|target| {
         let range = current_file.document.line_index.range(target.call.span);
-        let label = format!(
-            "{}:{}",
-            format_path(
-                current_file.document.path.parent().unwrap(),
-                &current_file.workspace_root
-            ),
-            target.name
+        let dir_path = format_path(
+            current_file.document.path.parent().unwrap(),
+            &current_file.workspace_root,
         );
+        let label = if dir_path.ends_with(&format!("/{}", target.name)) {
+            dir_path
+        } else {
+            format!("{}:{}", dir_path, target.name)
+        };
         CodeLens {
             range,
             command: Some(Command {
-                title: "copy".to_string(),
+                title: "copy label".to_string(),
                 command: "gn.copyTargetLabel".to_string(),
                 arguments: Some(vec![Value::String(label)]),
             }),
