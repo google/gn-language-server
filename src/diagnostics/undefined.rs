@@ -22,7 +22,7 @@ use crate::{
         AnalyzedBlock, AnalyzedFile, AnalyzedStatement, Analyzer, TopLevelStatementsExt,
         WorkspaceAnalyzer,
     },
-    common::builtins::{BUILTINS, DEFINED},
+    common::builtins::{BUILTINS, DEFINED, IMPORT},
     diagnostics::{DiagnosticDataUndefined, DIAGNOSTIC_CODE_UNDEFINED},
     parser::{Expr, Identifier, LValue, PrimaryExpr},
 };
@@ -117,7 +117,7 @@ impl<'p> PrimaryExpr<'p> {
         file: &'p AnalyzedFile,
         analyzer: &WorkspaceAnalyzer,
         request_time: Instant,
-        tracker: &EnvironmentTracker,
+        tracker: &mut EnvironmentTracker,
         diagnostics: &mut Vec<Diagnostic>,
     ) {
         match self {
@@ -127,16 +127,24 @@ impl<'p> PrimaryExpr<'p> {
             PrimaryExpr::Call(call) => {
                 call.function
                     .collect_undefined_identifiers(file, tracker, diagnostics);
-                if call.function.name != DEFINED {
-                    for expr in &call.args {
-                        expr.collect_undefined_identifiers(
-                            file,
-                            analyzer,
-                            request_time,
-                            tracker,
-                            diagnostics,
-                        );
+                if call.function.name == DEFINED {
+                    // If we see `defined(foo)`, consider foo defined.
+                    // This is inaccurate with false negatives, but it's better
+                    // than false positives.
+                    if let Some(arg) = call.only_arg() {
+                        if let Some(identifier) = arg.as_primary_identifier() {
+                            tracker.insert(identifier.name);
+                        }
                     }
+                }
+                for expr in &call.args {
+                    expr.collect_undefined_identifiers(
+                        file,
+                        analyzer,
+                        request_time,
+                        tracker,
+                        diagnostics,
+                    );
                 }
             }
             PrimaryExpr::ArrayAccess(array_access) => {
@@ -190,7 +198,7 @@ impl<'p> Expr<'p> {
         file: &'p AnalyzedFile,
         analyzer: &WorkspaceAnalyzer,
         request_time: Instant,
-        tracker: &EnvironmentTracker,
+        tracker: &mut EnvironmentTracker,
         diagnostics: &mut Vec<Diagnostic>,
     ) {
         match self {
@@ -380,6 +388,14 @@ impl<'p> AnalyzedBlock<'p> {
                 AnalyzedStatement::Import(import) => {
                     let imported_environment = analyzer.analyze_files(&import.path, request_time);
                     tracker.extend(imported_environment.get().variables.keys().copied());
+                    let file = analyzer.analyze_file(&import.path, request_time);
+                    if file.document.version.is_error() {
+                        tracker.set_untrackable();
+                    }
+                }
+                AnalyzedStatement::BuiltinCall(call) if call.call.function.name == IMPORT => {
+                    // Dynamic import.
+                    tracker.set_untrackable();
                 }
                 AnalyzedStatement::Conditions(_)
                 | AnalyzedStatement::DeclareArgs(_)

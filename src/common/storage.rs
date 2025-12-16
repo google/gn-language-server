@@ -28,6 +28,15 @@ pub enum DocumentVersion {
     IoError,
 }
 
+impl DocumentVersion {
+    pub fn is_error(self) -> bool {
+        match self {
+            DocumentVersion::IoError => true,
+            DocumentVersion::OnDisk { .. } | DocumentVersion::InMemory { .. } => false,
+        }
+    }
+}
+
 #[derive(Debug)]
 pub struct Document {
     pub path: PathBuf,

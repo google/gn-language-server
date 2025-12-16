@@ -601,6 +601,10 @@ impl WorkspaceAnalyzer {
                                 .resolve_path(name, document.path.parent().unwrap());
                             exports.children.push(path);
                         }
+                        // In the case of dynamic imports, we may lose track of
+                        // some imported symbols, but we ignore them here to
+                        // avoid propagating the "untrackable" state to all
+                        // transitive importers.
                     }
                     TEMPLATE => {
                         if let Some(name) = call.only_arg().and_then(|expr| expr.as_simple_string())
