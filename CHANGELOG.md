@@ -3,6 +3,8 @@
 ## 1.10.0 (unreleased)
 
 - Features:
+  - Enable workspace symbols by default
+  - Enable undefined variable analysis by default
   - Support code lens for targets
   - Support code actions to import undefined variables
 - Fixes:
