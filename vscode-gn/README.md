@@ -7,12 +7,16 @@ the build configuration language used in Chromium, Fuchsia, and other projects.
 ## Features
 
 - Syntax highlighting
-- Context-aware completion
+- Syntax error reporting
+- Context-aware completion and auto-import
 - Hover documentation
 - Go to definition
+- Finding target references
 - Following imports
 - Following dependencies
+- Quick fix
 - Sticky scroll with useful lines
+- Code lens
 - Outline
 - Code folding
 - Formatting
@@ -24,9 +28,9 @@ the build configuration language used in Chromium, Fuchsia, and other projects.
 
 ![Syntax highlighting](/docs/screenshots/syntax_highlighting.png)
 
-### Completion
+### Completion and auto-import
 
-![Completion](/docs/screenshots/completion.png)
+![Completion and auto-import](/docs/screenshots/completion.png)
 
 ### Hover documentation
 
@@ -44,9 +48,17 @@ the build configuration language used in Chromium, Fuchsia, and other projects.
 
 ![Following dependencies](/docs/screenshots/following_dependencies.png)
 
+### Quick fix
+
+![Quick fix](/docs/screenshots/quick_fix.png)
+
 ### Sticky scroll with useful lines
 
 ![Sticky scroll with useful lines](/docs/screenshots/sticky_scroll.png)
+
+### Code lens
+
+![Code lens](/docs/screenshots/code_lens.png)
 
 ### Outline
 

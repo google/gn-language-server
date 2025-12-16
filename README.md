@@ -10,13 +10,15 @@ the build configuration language used in Chromium, Fuchsia, and other projects.
 
 - Syntax highlighting
 - Syntax error reporting
-- Context-aware completion
+- Context-aware completion and auto-import
 - Hover documentation
 - Go to definition
 - Finding target references
 - Following imports
 - Following dependencies
+- Quick fix
 - Sticky scroll with useful lines
+- Code lens
 - Outline
 - Code folding
 - Formatting
@@ -46,9 +48,9 @@ cargo install gn-language-server
 
 ![Syntax highlighting](/docs/screenshots/syntax_highlighting.png)
 
-### Completion
+### Completion and auto-import
 
-![Completion](/docs/screenshots/completion.png)
+![Completion and auto-import](/docs/screenshots/completion.png)
 
 ### Hover documentation
 
@@ -66,9 +68,17 @@ cargo install gn-language-server
 
 ![Following dependencies](/docs/screenshots/following_dependencies.png)
 
+### Quick fix
+
+![Quick fix](/docs/screenshots/quick_fix.png)
+
 ### Sticky scroll with useful lines
 
 ![Sticky scroll with useful lines](/docs/screenshots/sticky_scroll.png)
+
+### Code lens
+
+![Code lens](/docs/screenshots/code_lens.png)
 
 ### Outline
 
