@@ -342,10 +342,10 @@ impl WorkspaceAnalyzer {
     }
 
     fn analyze_block<'p>(&self, block: &'p Block<'p>, document: &'p Document) -> AnalyzedBlock<'p> {
-        let mut statements: Vec<AnalyzedStatement> = Vec::new();
-
-        for statement in &block.statements {
-            match statement {
+        let statements = block
+            .statements
+            .iter()
+            .map(|statement| match statement {
                 Statement::Assignment(assignment) => {
                     let (identifier, mut expr_scopes) = match &assignment.lvalue {
                         LValue::Identifier(identifier) => (identifier.as_ref(), Vec::new()),
@@ -356,26 +356,20 @@ impl WorkspaceAnalyzer {
                         LValue::ScopeAccess(scope_access) => (&scope_access.scope, Vec::new()),
                     };
                     expr_scopes.extend(self.analyze_expr(&assignment.rvalue, document));
-                    statements.push(AnalyzedStatement::Assignment(Box::new(
-                        AnalyzedAssignment {
-                            assignment,
-                            primary_variable: identifier.span,
-                            comments: assignment.comments.clone(),
-                            expr_scopes,
-                        },
-                    )));
+                    AnalyzedStatement::Assignment(Box::new(AnalyzedAssignment {
+                        assignment,
+                        primary_variable: identifier.span,
+                        comments: assignment.comments.clone(),
+                        expr_scopes,
+                    }))
                 }
-                Statement::Call(call) => {
-                    statements.push(self.analyze_call(call, document));
-                }
-                Statement::Condition(condition) => {
-                    statements.push(AnalyzedStatement::Conditions(Box::new(
-                        self.analyze_condition(condition, document),
-                    )));
-                }
-                Statement::Error(_) => {}
-            }
-        }
+                Statement::Call(call) => self.analyze_call(call, document),
+                Statement::Condition(condition) => AnalyzedStatement::Conditions(Box::new(
+                    self.analyze_condition(condition, document),
+                )),
+                Statement::Error(error) => AnalyzedStatement::Error(error),
+            })
+            .collect();
 
         AnalyzedBlock {
             statements,

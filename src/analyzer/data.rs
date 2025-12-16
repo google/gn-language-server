@@ -32,7 +32,9 @@ use crate::{
         utils::{format_path, parse_simple_literal},
         workspace::find_nearest_workspace_root,
     },
-    parser::{Assignment, Call, Comments, Condition, Expr, Identifier, Node, OwnedBlock},
+    parser::{
+        Assignment, Call, Comments, Condition, ErrorStatement, Expr, Identifier, Node, OwnedBlock,
+    },
 };
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -267,7 +269,8 @@ impl<'p> AnalyzedBlock<'p> {
                 | AnalyzedStatement::Conditions(_)
                 | AnalyzedStatement::Target(_)
                 | AnalyzedStatement::Template(_)
-                | AnalyzedStatement::BuiltinCall(_) => {}
+                | AnalyzedStatement::BuiltinCall(_)
+                | AnalyzedStatement::Error(_) => {}
             }
         }
 
@@ -302,7 +305,8 @@ impl<'p> AnalyzedBlock<'p> {
                 | AnalyzedStatement::Foreach(_)
                 | AnalyzedStatement::ForwardVariablesFrom(_)
                 | AnalyzedStatement::Target(_)
-                | AnalyzedStatement::BuiltinCall(_) => {}
+                | AnalyzedStatement::BuiltinCall(_)
+                | AnalyzedStatement::Error(_) => {}
             }
         }
 
@@ -331,6 +335,7 @@ pub enum AnalyzedStatement<'p> {
     Target(Box<AnalyzedTarget<'p>>),
     Template(Box<AnalyzedTemplate<'p>>),
     BuiltinCall(Box<AnalyzedBuiltinCall<'p>>),
+    Error(&'p ErrorStatement<'p>),
 }
 
 impl<'p> AnalyzedStatement<'p> {
@@ -347,6 +352,7 @@ impl<'p> AnalyzedStatement<'p> {
             AnalyzedStatement::Target(target) => target.call.span,
             AnalyzedStatement::Template(template) => template.call.span,
             AnalyzedStatement::BuiltinCall(builtin_call) => builtin_call.call.span,
+            AnalyzedStatement::Error(statement) => statement.span(),
         }
     }
 
@@ -360,7 +366,8 @@ impl<'p> AnalyzedStatement<'p> {
             | AnalyzedStatement::DeclareArgs(_)
             | AnalyzedStatement::Foreach(_)
             | AnalyzedStatement::ForwardVariablesFrom(_)
-            | AnalyzedStatement::Import(_) => None,
+            | AnalyzedStatement::Import(_)
+            | AnalyzedStatement::Error(_) => None,
         }
     }
 
@@ -393,9 +400,9 @@ impl<'p> AnalyzedStatement<'p> {
             AnalyzedStatement::BuiltinCall(builtin_call) => {
                 Either::Left(builtin_call.expr_scopes.as_slice())
             }
-            AnalyzedStatement::DeclareArgs(_) | AnalyzedStatement::Import(_) => {
-                Either::Left([].as_slice())
-            }
+            AnalyzedStatement::DeclareArgs(_)
+            | AnalyzedStatement::Import(_)
+            | AnalyzedStatement::Error(_) => Either::Left([].as_slice()),
         }
         .into_iter()
     }

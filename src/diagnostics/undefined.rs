@@ -341,7 +341,9 @@ impl<'p> AnalyzedBlock<'p> {
                         );
                     }
                 }
-                AnalyzedStatement::DeclareArgs(_) | AnalyzedStatement::Import(_) => {}
+                AnalyzedStatement::DeclareArgs(_)
+                | AnalyzedStatement::Import(_)
+                | AnalyzedStatement::Error(_) => {}
             }
 
             // Collect undefined identifiers in subscopes.
@@ -383,7 +385,8 @@ impl<'p> AnalyzedBlock<'p> {
                 | AnalyzedStatement::DeclareArgs(_)
                 | AnalyzedStatement::Target(_)
                 | AnalyzedStatement::Template(_)
-                | AnalyzedStatement::BuiltinCall(_) => {}
+                | AnalyzedStatement::BuiltinCall(_)
+                | AnalyzedStatement::Error(_) => {}
             }
         }
     }
