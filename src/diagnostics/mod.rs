@@ -39,5 +39,6 @@ pub fn compute_diagnostics(
     [
         collect_syntax_errors(file.ast.get(), &file.document),
         collect_undefined_identifiers(file, analyzer, request_time),
-    ].concat()
+    ]
+    .concat()
 }

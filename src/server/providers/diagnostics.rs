@@ -32,11 +32,7 @@ pub async fn publish_diagnostics(context: &RequestContext, uri: &Url) {
         return;
     };
 
-    let diagnostics = compute_diagnostics(
-        &current_file,
-        &context.analyzer,
-        context.request_time,
-    );
+    let diagnostics = compute_diagnostics(&current_file, &context.analyzer, context.request_time);
 
     let version = if let DocumentVersion::InMemory { revision } = current_file.document.version {
         Some(revision)
