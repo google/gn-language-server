@@ -3,10 +3,12 @@
 ## 1.10.0 (unreleased)
 
 - Features:
-  - Enable workspace symbols by default
-  - Enable undefined variable analysis by default
-  - Support code lens for targets
-  - Support code actions to import undefined variables
+  - Highlight undefined variables
+  - Suggest completion items from the workspace
+  - Auto-import variables and templates on completion
+  - Quick fix to import variables
+  - Code lens for targets
+  - Support workspace symbols
 - Fixes:
   - Fix crash on completing foreach variables
   - Fix incorrect analysis for circular imports
