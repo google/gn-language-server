@@ -131,7 +131,7 @@ pub struct AnalyzedFile {
     pub analyzed_root: OwnedAnalyzedBlock,
     pub exports: OwnedFileExports,
     pub link_index: OwnedLinkIndex,
-    pub symbols: Vec<DocumentSymbol>,
+    pub outline: Vec<DocumentSymbol>,
     pub external: bool,
     pub key: Arc<CacheKey>,
 }
@@ -145,7 +145,7 @@ impl AnalyzedFile {
         analyzed_root: OwnedAnalyzedBlock,
         exports: OwnedFileExports,
         link_index: OwnedLinkIndex,
-        symbols: Vec<DocumentSymbol>,
+        outline: Vec<DocumentSymbol>,
         request_time: Instant,
     ) -> Self {
         let external =
@@ -158,7 +158,7 @@ impl AnalyzedFile {
             analyzed_root,
             exports,
             link_index,
-            symbols,
+            outline,
             external,
             key,
         }

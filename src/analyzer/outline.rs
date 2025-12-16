@@ -21,7 +21,7 @@ use crate::{
 };
 
 #[allow(deprecated)]
-pub fn collect_symbols(node: &dyn Node, line_index: &OwnedLineIndex) -> Vec<DocumentSymbol> {
+pub fn compute_outline(node: &dyn Node, line_index: &OwnedLineIndex) -> Vec<DocumentSymbol> {
     let mut symbols = Vec::new();
     if let Some(statement) = node.as_statement() {
         match statement {
@@ -38,7 +38,7 @@ pub fn collect_symbols(node: &dyn Node, line_index: &OwnedLineIndex) -> Vec<Docu
                     deprecated: None,
                     range: line_index.range(assignment.span()),
                     selection_range: line_index.range(assignment.lvalue.span()),
-                    children: Some(collect_symbols(assignment.rvalue.as_node(), line_index)),
+                    children: Some(compute_outline(assignment.rvalue.as_node(), line_index)),
                 });
             }
             Statement::Call(call) => {
@@ -60,7 +60,7 @@ pub fn collect_symbols(node: &dyn Node, line_index: &OwnedLineIndex) -> Vec<Docu
                         deprecated: None,
                         range: line_index.range(call.span()),
                         selection_range: line_index.range(call.function.span()),
-                        children: Some(collect_symbols(block.as_node(), line_index)),
+                        children: Some(compute_outline(block.as_node(), line_index)),
                     });
                 }
             }
@@ -79,7 +79,7 @@ pub fn collect_symbols(node: &dyn Node, line_index: &OwnedLineIndex) -> Vec<Docu
                 let mut current_condition = top_condition;
                 let mut current_children = top_symbol.children.as_mut().unwrap();
                 loop {
-                    current_children.extend(collect_symbols(
+                    current_children.extend(compute_outline(
                         current_condition.then_block.as_node(),
                         line_index,
                     ));
@@ -116,7 +116,7 @@ pub fn collect_symbols(node: &dyn Node, line_index: &OwnedLineIndex) -> Vec<Docu
                                 deprecated: None,
                                 range: line_index.range(else_block.span()),
                                 selection_range: line_index.range(else_block.span()),
-                                children: Some(collect_symbols(else_block.as_node(), line_index)),
+                                children: Some(compute_outline(else_block.as_node(), line_index)),
                             });
                             break;
                         }
@@ -129,7 +129,7 @@ pub fn collect_symbols(node: &dyn Node, line_index: &OwnedLineIndex) -> Vec<Docu
         }
     } else {
         for child in node.children() {
-            symbols.extend(collect_symbols(child, line_index));
+            symbols.extend(compute_outline(child, line_index));
         }
     }
     symbols

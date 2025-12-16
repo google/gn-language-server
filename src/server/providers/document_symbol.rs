@@ -27,6 +27,6 @@ pub async fn document_symbol(
     let current_file = context.analyzer.analyze_file(&path, context.request_time)?;
 
     Ok(Some(DocumentSymbolResponse::Nested(
-        current_file.symbols.clone(),
+        current_file.outline.clone(),
     )))
 }

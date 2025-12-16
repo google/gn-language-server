@@ -24,7 +24,7 @@ use either::Either;
 use crate::{
     analyzer::{
         dotgn::evaluate_dot_gn, indexing::build_index, links::collect_links,
-        symbols::collect_symbols,
+        outline::compute_outline,
     },
     common::{
         builtins::{
@@ -57,7 +57,7 @@ mod data;
 mod dotgn;
 mod indexing;
 mod links;
-mod symbols;
+mod outline;
 mod tests;
 mod toplevel;
 mod utils;
@@ -330,7 +330,7 @@ impl WorkspaceAnalyzer {
         let link_index = OwnedLinkIndex::new(ast.clone(), |ast| {
             collect_links(ast.get(), path, &self.context)
         });
-        let symbols = collect_symbols(ast.get(), &document.line_index);
+        let outline = compute_outline(ast.get(), &document.line_index);
 
         AnalyzedFile::new(
             document,
@@ -339,7 +339,7 @@ impl WorkspaceAnalyzer {
             analyzed_root,
             exports,
             link_index,
-            symbols,
+            outline,
             request_time,
         )
     }
