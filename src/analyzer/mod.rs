@@ -27,7 +27,10 @@ use crate::{
         symbols::collect_symbols,
     },
     common::{
-        builtins::{DECLARE_ARGS, FOREACH, FORWARD_VARIABLES_FROM, IMPORT, SET_DEFAULTS, TEMPLATE},
+        builtins::{
+            DECLARE_ARGS, FOREACH, FORWARD_VARIABLES_FROM, IMPORT, SET_DEFAULTS, TEMPLATE,
+            VISIBILITY,
+        },
         error::{Error, Result},
         storage::{Document, DocumentStorage},
         utils::{is_exported, is_good_for_scan, parse_simple_literal, AsyncSignal},
@@ -676,6 +679,9 @@ impl WorkspaceAnalyzer {
                 Statement::Condition(_) | Statement::Error(_) => {}
             }
         }
+
+        // Exception: `visibility` is not exported.
+        exports.variables.remove(VISIBILITY);
 
         exports
     }

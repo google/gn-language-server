@@ -19,6 +19,7 @@ pub const FOREACH: &str = "foreach";
 pub const SET_DEFAULTS: &str = "set_defaults";
 pub const FORWARD_VARIABLES_FROM: &str = "forward_variables_from";
 pub const DEFINED: &str = "defined";
+pub const VISIBILITY: &str = "visibility";
 
 pub struct BuiltinSymbol {
     pub name: &'static str,
