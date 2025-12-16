@@ -76,32 +76,22 @@
         "gn.errorReporting": {
           "type": "boolean",
           "default": true,
-          "description": "Reports syntax errors."
+          "description": "Reports syntax/semantic errors."
         },
-        "gn.experimental.parallelIndexing": {
+        "gn.parallelIndexing": {
           "type": "boolean",
-          "default": false,
-          "description": "Enables parallel indexing (experimental)."
+          "default": true,
+          "description": "Enables parallel background indexing."
         },
-        "gn.experimental.targetLens": {
+        "gn.targetLens": {
           "type": "boolean",
-          "default": false,
-          "description": "Enables code lens for build targets (experimental)."
+          "default": true,
+          "description": "Enables code lens for build targets."
         },
-        "gn.experimental.undefinedVariableAnalysis": {
+        "gn.workspaceCompletion": {
           "type": "boolean",
-          "default": false,
-          "description": "Enables undefined variable analysis (experimental)."
-        },
-        "gn.experimental.workspaceCompletion": {
-          "type": "boolean",
-          "default": false,
-          "description": "Enables workspace completion (experimental)."
-        },
-        "gn.experimental.workspaceSymbols": {
-          "type": "boolean",
-          "default": false,
-          "description": "Enables workspace symbols (experimental)."
+          "default": true,
+          "description": "Gathers completion items from the workspace. Requires background indexing."
         },
         "gn.trace.server": {
           "type": "string",

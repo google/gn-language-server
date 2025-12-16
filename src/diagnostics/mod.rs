@@ -34,12 +34,10 @@ pub struct DiagnosticDataUndefined {
 pub fn compute_diagnostics(
     file: &AnalyzedFile,
     analyzer: &Analyzer,
-    undefined_variable_analysis: bool,
     request_time: Instant,
 ) -> Vec<Diagnostic> {
-    let mut diagnostics = collect_syntax_errors(file.ast.get(), &file.document);
-    if undefined_variable_analysis {
-        diagnostics.extend(collect_undefined_identifiers(file, analyzer, request_time));
-    }
-    diagnostics
+    [
+        collect_syntax_errors(file.ast.get(), &file.document),
+        collect_undefined_identifiers(file, analyzer, request_time),
+    ].concat()
 }

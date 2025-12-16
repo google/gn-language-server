@@ -74,7 +74,7 @@ pub async fn code_lens(
     params: CodeLensParams,
 ) -> Result<Option<Vec<CodeLens>>> {
     let configs = context.client.configurations().await;
-    if !configs.experimental.target_lens {
+    if !configs.target_lens {
         return Ok(None);
     }
 

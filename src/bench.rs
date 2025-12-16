@@ -44,7 +44,7 @@ pub async fn run_bench(workspace_root: &Path) {
         tasks.push(tokio::spawn(async move {
             if let Ok(file) = analyzer.analyze_file(&path, start_time) {
                 let diagnostics =
-                    crate::diagnostics::compute_diagnostics(&file, &analyzer, true, start_time);
+                    crate::diagnostics::compute_diagnostics(&file, &analyzer, start_time);
                 for d in diagnostics {
                     println!(
                         "{}:{}:{}: {}",

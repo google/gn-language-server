@@ -269,7 +269,7 @@ pub async fn completion(
         &current_file,
         &workspace,
         offset,
-        config.experimental.workspace_completion,
+        config.workspace_completion,
     )
     .await?;
     Ok(Some(CompletionResponse::Array(items)))

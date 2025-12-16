@@ -35,7 +35,6 @@ pub async fn publish_diagnostics(context: &RequestContext, uri: &Url) {
     let diagnostics = compute_diagnostics(
         &current_file,
         &context.analyzer,
-        config.experimental.undefined_variable_analysis,
         context.request_time,
     );
 

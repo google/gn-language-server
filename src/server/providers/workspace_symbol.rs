@@ -23,16 +23,6 @@ pub async fn workspace_symbol(
     context: &RequestContext,
     params: WorkspaceSymbolParams,
 ) -> Result<Option<Vec<SymbolInformation>>> {
-    if !context
-        .client
-        .configurations()
-        .await
-        .experimental
-        .workspace_symbols
-    {
-        return Ok(None);
-    }
-
     let symbols = SymbolSet::global(&context.analyzer).await;
 
     let query = params.query.to_lowercase();

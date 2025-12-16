@@ -28,15 +28,24 @@ pub struct Configurations {
     pub background_indexing: bool,
     #[serde(default = "default_true")]
     pub error_reporting: bool,
+    #[serde(default = "default_true")]
+    pub target_lens: bool,
+    #[serde(default = "default_true")]
+    pub parallel_indexing: bool,
+    #[serde(default = "default_true")]
+    pub workspace_completion: bool,
     pub experimental: ExperimentalConfigurations,
 }
 
 impl Default for Configurations {
     fn default() -> Self {
         Self {
-            binary_path: Default::default(),
+            binary_path: None,
             background_indexing: true,
             error_reporting: true,
+            target_lens: true,
+            parallel_indexing: true,
+            workspace_completion: true,
             experimental: Default::default(),
         }
     }
@@ -47,7 +56,7 @@ impl Configurations {
         match self.background_indexing {
             false => IndexingLevel::Disabled,
             true => IndexingLevel::Enabled {
-                parallel: self.experimental.parallel_indexing,
+                parallel: self.parallel_indexing,
             },
         }
     }
@@ -55,10 +64,4 @@ impl Configurations {
 
 #[derive(Default, serde::Serialize, serde::Deserialize)]
 #[serde(rename_all = "camelCase")]
-pub struct ExperimentalConfigurations {
-    pub undefined_variable_analysis: bool,
-    pub workspace_symbols: bool,
-    pub target_lens: bool,
-    pub parallel_indexing: bool,
-    pub workspace_completion: bool,
-}
+pub struct ExperimentalConfigurations {}
