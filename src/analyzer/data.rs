@@ -22,7 +22,7 @@ use std::{
 use either::Either;
 use pest::Span;
 use self_cell::self_cell;
-use tower_lsp::lsp_types::{DocumentSymbol, Url};
+use tower_lsp::lsp_types::Url;
 
 use crate::{
     analyzer::{cache::CacheKey, toplevel::TopLevelStatementsExt, utils::resolve_path},
@@ -131,7 +131,6 @@ pub struct AnalyzedFile {
     pub analyzed_root: OwnedAnalyzedBlock,
     pub exports: OwnedFileExports,
     pub link_index: OwnedLinkIndex,
-    pub outline: Vec<DocumentSymbol>,
     pub external: bool,
     pub key: Arc<CacheKey>,
 }
@@ -145,7 +144,6 @@ impl AnalyzedFile {
         analyzed_root: OwnedAnalyzedBlock,
         exports: OwnedFileExports,
         link_index: OwnedLinkIndex,
-        outline: Vec<DocumentSymbol>,
         request_time: Instant,
     ) -> Self {
         let external =
@@ -158,7 +156,6 @@ impl AnalyzedFile {
             analyzed_root,
             exports,
             link_index,
-            outline,
             external,
             key,
         }

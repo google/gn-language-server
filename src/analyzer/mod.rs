@@ -22,10 +22,7 @@ use std::{
 use either::Either;
 
 use crate::{
-    analyzer::{
-        dotgn::evaluate_dot_gn, indexing::build_index, links::collect_links,
-        outline::compute_outline,
-    },
+    analyzer::{dotgn::evaluate_dot_gn, indexing::build_index, links::collect_links},
     common::{
         builtins::{
             DECLARE_ARGS, FOREACH, FORWARD_VARIABLES_FROM, IMPORT, SET_DEFAULTS, TEMPLATE,
@@ -57,7 +54,6 @@ mod data;
 mod dotgn;
 mod indexing;
 mod links;
-mod outline;
 mod tests;
 mod toplevel;
 mod utils;
@@ -330,7 +326,6 @@ impl WorkspaceAnalyzer {
         let link_index = OwnedLinkIndex::new(parsed_root.clone(), |parsed_root| {
             collect_links(parsed_root.get(), path, &self.context)
         });
-        let outline = compute_outline(parsed_root.get(), &document.line_index);
 
         AnalyzedFile::new(
             document,
@@ -339,7 +334,6 @@ impl WorkspaceAnalyzer {
             analyzed_root,
             exports,
             link_index,
-            outline,
             request_time,
         )
     }
