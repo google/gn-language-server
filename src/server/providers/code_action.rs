@@ -17,7 +17,7 @@ use std::{collections::HashMap, path::Path};
 use itertools::Itertools;
 use tower_lsp::lsp_types::{
     CodeAction, CodeActionKind, CodeActionOrCommand, CodeActionParams, CodeActionResponse, Command,
-    Diagnostic, NumberOrString, SymbolKind, Url, WorkspaceEdit,
+    Diagnostic, NumberOrString, Url, WorkspaceEdit,
 };
 
 use crate::{
@@ -53,14 +53,11 @@ async fn compute_import_actions(
     let symbols = SymbolSet::workspace(&workspace).await;
 
     let imports: Vec<String> = symbols
-        .symbol_informations()
-        .filter(|symbol| {
-            symbol.name == name
-                && matches!(symbol.kind, SymbolKind::VARIABLE | SymbolKind::CONSTANT)
-        })
-        .map(|symbol| {
+        .variables()
+        .filter(|variable| variable.name == name)
+        .map(|variable| {
             format_path(
-                &symbol.location.uri.to_file_path().unwrap(),
+                &variable.assignments.first().unwrap().document.path,
                 &workspace.context().root,
             )
         })

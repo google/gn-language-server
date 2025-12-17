@@ -12,12 +12,58 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use tower_lsp::lsp_types::{SymbolInformation, WorkspaceSymbolParams};
+use either::Either;
+use tower_lsp::lsp_types::{Location, SymbolInformation, SymbolKind, Url, WorkspaceSymbolParams};
 
 use crate::{
+    analyzer::{Template, Variable},
     common::error::Result,
     server::{symbols::SymbolSet, RequestContext},
 };
+
+impl Variable<'_> {
+    #[allow(deprecated)]
+    fn as_symbol_information(&self) -> SymbolInformation {
+        let first_assignment = self.assignments.first().unwrap();
+        SymbolInformation {
+            name: self.name.to_string(),
+            kind: if self.is_args {
+                SymbolKind::CONSTANT
+            } else {
+                SymbolKind::VARIABLE
+            },
+            tags: None,
+            deprecated: None,
+            location: Location {
+                uri: Url::from_file_path(&first_assignment.document.path).unwrap(),
+                range: first_assignment.document.line_index.range(
+                    match first_assignment.assignment_or_call {
+                        Either::Left(assignment) => assignment.span,
+                        Either::Right(call) => call.span,
+                    },
+                ),
+            },
+            container_name: None,
+        }
+    }
+}
+
+impl Template<'_> {
+    #[allow(deprecated)]
+    fn as_symbol_information(&self) -> SymbolInformation {
+        SymbolInformation {
+            name: self.name.to_string(),
+            kind: SymbolKind::FUNCTION,
+            tags: None,
+            deprecated: None,
+            location: Location {
+                uri: Url::from_file_path(&self.document.path).unwrap(),
+                range: self.document.line_index.range(self.call.span),
+            },
+            container_name: None,
+        }
+    }
+}
 
 pub async fn workspace_symbol(
     context: &RequestContext,
@@ -25,11 +71,16 @@ pub async fn workspace_symbol(
 ) -> Result<Option<Vec<SymbolInformation>>> {
     let symbols = SymbolSet::global(&context.analyzer).await;
 
-    let query = params.query.to_lowercase();
-    let symbols = symbols
-        .symbol_informations()
-        .filter(|symbol| symbol.name.starts_with(&query))
-        .collect();
+    let query = params.query.to_ascii_lowercase();
 
-    Ok(Some(symbols))
+    let variable_symbols = symbols
+        .variables()
+        .filter(|variable| variable.name.to_ascii_lowercase().starts_with(&query))
+        .map(|variable| variable.as_symbol_information());
+    let template_symbols = symbols
+        .templates()
+        .filter(|template| template.name.to_ascii_lowercase().starts_with(&query))
+        .map(|template| template.as_symbol_information());
+
+    Ok(Some(variable_symbols.chain(template_symbols).collect()))
 }

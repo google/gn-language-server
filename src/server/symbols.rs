@@ -14,54 +14,7 @@
 
 use std::sync::Arc;
 
-use either::Either;
-use tower_lsp::lsp_types::{Location, SymbolInformation, SymbolKind, Url};
-
 use crate::analyzer::{AnalyzedFile, Analyzer, Template, Variable, WorkspaceAnalyzer};
-
-impl Variable<'_> {
-    #[allow(deprecated)]
-    fn as_symbol_information(&self) -> SymbolInformation {
-        let first_assignment = self.assignments.first().unwrap();
-        SymbolInformation {
-            name: self.name.to_string(),
-            kind: if self.is_args {
-                SymbolKind::CONSTANT
-            } else {
-                SymbolKind::VARIABLE
-            },
-            tags: None,
-            deprecated: None,
-            location: Location {
-                uri: Url::from_file_path(&first_assignment.document.path).unwrap(),
-                range: first_assignment.document.line_index.range(
-                    match first_assignment.assignment_or_call {
-                        Either::Left(assignment) => assignment.span,
-                        Either::Right(call) => call.span,
-                    },
-                ),
-            },
-            container_name: None,
-        }
-    }
-}
-
-impl Template<'_> {
-    #[allow(deprecated)]
-    fn as_symbol_information(&self) -> SymbolInformation {
-        SymbolInformation {
-            name: self.name.to_string(),
-            kind: SymbolKind::FUNCTION,
-            tags: None,
-            deprecated: None,
-            location: Location {
-                uri: Url::from_file_path(&self.document.path).unwrap(),
-                range: self.document.line_index.range(self.call.span),
-            },
-            container_name: None,
-        }
-    }
-}
 
 pub struct SymbolSet {
     files: Vec<Arc<AnalyzedFile>>,
@@ -93,24 +46,6 @@ impl SymbolSet {
             .filter(|file| !file.external)
             .collect();
         Self { files }
-    }
-
-    pub fn symbol_informations(&self) -> impl Iterator<Item = SymbolInformation> + '_ {
-        self.files.iter().flat_map(|file| {
-            let variables = file
-                .exports
-                .get()
-                .variables
-                .values()
-                .map(|variable| variable.as_symbol_information());
-            let templates = file
-                .exports
-                .get()
-                .templates
-                .values()
-                .map(|template| template.as_symbol_information());
-            variables.chain(templates)
-        })
     }
 
     pub fn variables(&self) -> impl Iterator<Item = &Variable<'_>> + '_ {
