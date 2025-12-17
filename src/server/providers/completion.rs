@@ -100,6 +100,14 @@ impl Variable<'_> {
         } else {
             None
         };
+        let label_details = if first_assignment.document.path == current_file.document.path {
+            None
+        } else {
+            Some(CompletionItemLabelDetails {
+                detail: None,
+                description: Some(import_path),
+            })
+        };
         CompletionItem {
             label: self.name.to_string(),
             kind: Some(CompletionItemKind::VARIABLE),
@@ -107,10 +115,7 @@ impl Variable<'_> {
                 kind: MarkupKind::Markdown,
                 value: self.format_help(&current_file.workspace_root).join("\n\n"),
             })),
-            label_details: Some(CompletionItemLabelDetails {
-                detail: None,
-                description: Some(import_path),
-            }),
+            label_details,
             additional_text_edits,
             ..Default::default()
         }
@@ -119,13 +124,19 @@ impl Variable<'_> {
 
 impl Template<'_> {
     fn as_completion_item(&self, current_file: &AnalyzedFile, need_import: bool) -> CompletionItem {
+        let import_path = format_path(&self.document.path, &current_file.workspace_root);
         let additional_text_edits = if need_import {
-            Some(vec![create_import_edit(
-                current_file,
-                &format_path(&self.document.path, &current_file.workspace_root),
-            )])
+            Some(vec![create_import_edit(current_file, &import_path)])
         } else {
             None
+        };
+        let label_details = if self.document.path == current_file.document.path {
+            None
+        } else {
+            Some(CompletionItemLabelDetails {
+                detail: None,
+                description: Some(import_path),
+            })
         };
         CompletionItem {
             label: self.name.to_string(),
@@ -134,6 +145,7 @@ impl Template<'_> {
                 kind: MarkupKind::Markdown,
                 value: self.format_help(&current_file.workspace_root).join("\n\n"),
             })),
+            label_details,
             additional_text_edits,
             ..Default::default()
         }
@@ -156,6 +168,13 @@ async fn build_identifier_completions(
     let environment = workspace.analyze_at(current_file, offset, context.request_time);
     let symbols = SymbolSet::workspace(workspace).await;
 
+    let builtin_variables: HashSet<&str> = BUILTINS
+        .predefined_variables
+        .iter()
+        .chain(BUILTINS.target_variables.iter())
+        .map(|symbol| symbol.name)
+        .collect();
+
     // Enumerate variables/templates already in the scope.
     let known_variables: HashSet<&str> = environment.get().variables.keys().copied().collect();
     let known_templates: HashSet<&str> = environment.get().templates.keys().copied().collect();
@@ -165,6 +184,7 @@ async fn build_identifier_completions(
         .get()
         .variables
         .values()
+        .filter(|variable| !builtin_variables.contains(variable.name))
         .map(|variable| variable.as_completion_item(current_file, false));
     let local_template_items = environment
         .get()
@@ -176,6 +196,7 @@ async fn build_identifier_completions(
     let workspace_items: Vec<_> = if workspace_completion {
         let workspace_variable_items = symbols
             .variables()
+            .filter(|variable| !builtin_variables.contains(variable.name))
             .filter(|variable| !known_variables.contains(variable.name))
             .map(|variable| variable.as_completion_item(current_file, true));
         let workspace_template_items = symbols
