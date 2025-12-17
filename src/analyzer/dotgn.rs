@@ -25,11 +25,11 @@ use crate::{
 
 pub fn evaluate_dot_gn(workspace_root: &Path, input: &str) -> Result<PathBuf> {
     let line_index = LineIndex::new(input);
-    let ast = parse(input);
+    let parsed_root = parse(input);
 
     let mut build_config_path: Option<PathBuf> = None;
 
-    for statement in &ast.statements {
+    for statement in &parsed_root.statements {
         let Statement::Assignment(assignment) = statement else {
             continue;
         };

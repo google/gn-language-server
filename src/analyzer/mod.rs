@@ -319,23 +319,23 @@ impl WorkspaceAnalyzer {
 
     fn analyze_file_uncached(&self, path: &Path, request_time: Instant) -> AnalyzedFile {
         let document = self.storage.lock().unwrap().read(path);
-        let ast = OwnedBlock::new(document.clone(), |document| parse(&document.data));
+        let parsed_root = OwnedBlock::new(document.clone(), |document| parse(&document.data));
 
-        let analyzed_root = OwnedAnalyzedBlock::new(ast.clone(), |ast| {
-            self.analyze_block(ast.get(), ast.document())
+        let analyzed_root = OwnedAnalyzedBlock::new(parsed_root.clone(), |parsed_root| {
+            self.analyze_block(parsed_root.get(), parsed_root.document())
         });
-        let exports = OwnedFileExports::new(ast.clone(), |ast| {
-            self.analyze_exports(ast.get(), ast.document())
+        let exports = OwnedFileExports::new(parsed_root.clone(), |parsed_root| {
+            self.analyze_exports(parsed_root.get(), parsed_root.document())
         });
-        let link_index = OwnedLinkIndex::new(ast.clone(), |ast| {
-            collect_links(ast.get(), path, &self.context)
+        let link_index = OwnedLinkIndex::new(parsed_root.clone(), |parsed_root| {
+            collect_links(parsed_root.get(), path, &self.context)
         });
-        let outline = compute_outline(ast.get(), &document.line_index);
+        let outline = compute_outline(parsed_root.get(), &document.line_index);
 
         AnalyzedFile::new(
             document,
             self.context.root.clone(),
-            ast,
+            parsed_root,
             analyzed_root,
             exports,
             link_index,

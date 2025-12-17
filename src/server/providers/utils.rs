@@ -31,7 +31,7 @@ pub fn get_text_document_path(text_document: &TextDocumentIdentifier) -> Result<
 }
 
 pub fn lookup_identifier_at(file: &AnalyzedFile, pos: usize) -> Option<&Identifier<'_>> {
-    file.ast
+    file.parsed_root
         .get()
         .identifiers()
         .find(|ident| ident.span.start() <= pos && pos <= ident.span.end())

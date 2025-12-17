@@ -37,7 +37,7 @@ pub fn compute_diagnostics(
     request_time: Instant,
 ) -> Vec<Diagnostic> {
     [
-        collect_syntax_errors(file.ast.get(), &file.document),
+        collect_syntax_errors(file.parsed_root.get(), &file.document),
         collect_undefined_identifiers(file, analyzer, request_time),
     ]
     .concat()

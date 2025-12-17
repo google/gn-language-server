@@ -51,11 +51,11 @@ fn resolve_target<'s>(
 }
 
 pub fn collect_links<'i>(
-    ast: &Block<'i>,
+    parsed_root: &Block<'i>,
     path: &Path,
     workspace: &WorkspaceContext,
 ) -> LinkIndex<'i> {
-    let links = ast.strings().filter_map(|string| {
+    let links = parsed_root.strings().filter_map(|string| {
         let content = parse_simple_literal(string.raw_value)?;
         if !content.contains(":") && content.contains(".") {
             let path = workspace.resolve_path(content, path.parent().unwrap());

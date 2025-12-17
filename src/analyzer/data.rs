@@ -127,7 +127,7 @@ impl OwnedEnvironment {
 pub struct AnalyzedFile {
     pub document: Arc<Document>,
     pub workspace_root: PathBuf,
-    pub ast: OwnedBlock,
+    pub parsed_root: OwnedBlock,
     pub analyzed_root: OwnedAnalyzedBlock,
     pub exports: OwnedFileExports,
     pub link_index: OwnedLinkIndex,
@@ -141,7 +141,7 @@ impl AnalyzedFile {
     pub fn new(
         document: Arc<Document>,
         workspace_root: PathBuf,
-        ast: OwnedBlock,
+        parsed_root: OwnedBlock,
         analyzed_root: OwnedAnalyzedBlock,
         exports: OwnedFileExports,
         link_index: OwnedLinkIndex,
@@ -154,7 +154,7 @@ impl AnalyzedFile {
         Self {
             document,
             workspace_root,
-            ast,
+            parsed_root,
             analyzed_root,
             exports,
             link_index,

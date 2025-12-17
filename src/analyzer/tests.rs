@@ -40,7 +40,7 @@ fn test_analyze_smoke() {
 
     // No parse error.
     assert!(file
-        .ast
+        .parsed_root
         .get()
         .statements
         .iter()

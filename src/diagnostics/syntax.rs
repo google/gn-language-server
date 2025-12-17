@@ -19,8 +19,9 @@ use crate::{
     parser::{Block, Node},
 };
 
-pub fn collect_syntax_errors(ast: &Block, document: &Document) -> Vec<Diagnostic> {
-    ast.errors()
+pub fn collect_syntax_errors(parsed_root: &Block, document: &Document) -> Vec<Diagnostic> {
+    parsed_root
+        .errors()
         .map(|error| Diagnostic {
             range: document.line_index.range(error.span()),
             severity: Some(DiagnosticSeverity::ERROR),
