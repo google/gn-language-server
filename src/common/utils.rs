@@ -68,6 +68,12 @@ pub fn is_good_for_scan(path: &Path) -> bool {
         })
 }
 
+pub fn is_good_for_import(path: &Path) -> bool {
+    path.file_name()
+        .and_then(|name| name.to_str())
+        .is_some_and(|name| name.ends_with(".gni") || name == "BUILDCONFIG.gn")
+}
+
 pub fn find_gn_in_workspace_for_scan(workspace_root: &Path) -> impl Iterator<Item = PathBuf> {
     walk_source_dirs(workspace_root).filter(|path| is_good_for_scan(path))
 }

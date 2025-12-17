@@ -14,7 +14,10 @@
 
 use std::sync::Arc;
 
-use crate::analyzer::{AnalyzedFile, Analyzer, Template, Variable, WorkspaceAnalyzer};
+use crate::{
+    analyzer::{AnalyzedFile, Analyzer, Template, Variable, WorkspaceAnalyzer},
+    common::utils::is_good_for_import,
+};
 
 pub struct SymbolSet {
     files: Vec<Arc<AnalyzedFile>>,
@@ -31,7 +34,7 @@ impl SymbolSet {
                     .scan_files()
                     .await
                     .into_iter()
-                    .filter(|file| !file.external),
+                    .filter(|file| !file.external && is_good_for_import(&file.document.path)),
             );
         }
 
@@ -43,7 +46,7 @@ impl SymbolSet {
             .scan_files()
             .await
             .into_iter()
-            .filter(|file| !file.external)
+            .filter(|file| !file.external && is_good_for_import(&file.document.path))
             .collect();
         Self { files }
     }
