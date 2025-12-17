@@ -225,12 +225,13 @@ async fn build_identifier_completions(
         ..Default::default()
     });
 
-    Ok(local_variable_items
-        .chain(local_template_items)
-        .chain(workspace_items)
+    Ok(keyword_items
+        .into_iter()
         .chain(builtin_function_items)
         .chain(builtin_variable_items)
-        .chain(keyword_items)
+        .chain(local_variable_items)
+        .chain(local_template_items)
+        .chain(workspace_items)
         .collect())
 }
 
