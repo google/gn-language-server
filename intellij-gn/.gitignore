@@ -1,0 +1,15 @@
+.gradle
+.intellijPlatform
+.kotlin
+/build
+
+# IntelliJ
+.idea
+*.iws
+*.iml
+*.ipr
+
+# gradle
+/gradle
+/gradlew
+/gradlew.bat

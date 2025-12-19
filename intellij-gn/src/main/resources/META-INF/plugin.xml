@@ -1,0 +1,40 @@
+<!--
+ Copyright 2025 Google LLC
+
+ Licensed under the Apache License, Version 2.0 (the "License");
+ you may not use this file except in compliance with the License.
+ You may obtain a copy of the License at
+
+     http://www.apache.org/licenses/LICENSE-2.0
+
+ Unless required by applicable law or agreed to in writing, software
+ distributed under the License is distributed on an "AS IS" BASIS,
+ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ See the License for the specific language governing permissions and
+ limitations under the License.
+-->
+
+<idea-plugin>
+  <id>com.google.gn</id>
+  <name>GN</name>
+  <vendor url="https://www.google.com/">Google</vendor>
+  <description>Language server for GN, the build configuration language used in
+    Chromium, Fuchsia, and other projects.
+  </description>
+
+  <depends>com.intellij.modules.platform</depends>
+  <depends>com.redhat.devtools.lsp4ij</depends>
+  <depends optional="true" config-file="plugin-textmate.xml">
+    org.jetbrains.plugins.textmate
+  </depends>
+
+  <extensions defaultExtensionNs="com.intellij">
+    <fileType name="GN" implementationClass="com.google.gn.GnFileType"
+        fieldName="INSTANCE" language="GN" extensions="gn;gni"/>
+  </extensions>
+
+  <extensions defaultExtensionNs="com.redhat.devtools.lsp4ij">
+    <server id="gn" name="GN" factoryClass="com.google.gn.GnLspServerFactory"/>
+    <languageMapping language="GN" serverId="gn"/>
+  </extensions>
+</idea-plugin>
