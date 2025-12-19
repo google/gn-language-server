@@ -41,7 +41,7 @@ dependencies {
 intellijPlatform {
   pluginConfiguration {
     ideaVersion {
-      sinceBuild = "252.25557"
+      sinceBuild = "242"
     }
 
     changeNotes = """
@@ -58,7 +58,7 @@ tasks {
   }
 
   wrapper {
-    gradleVersion = "9.0.0"
+    gradleVersion = "8.14.3"
   }
 }
 
