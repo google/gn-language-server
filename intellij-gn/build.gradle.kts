@@ -60,6 +60,15 @@ tasks {
   wrapper {
     gradleVersion = "8.14.3"
   }
+
+  prepareSandbox {
+    val gnBinaryPath = project.findProperty("gnBinaryPath") as? String
+    if (gnBinaryPath != null) {
+      from(gnBinaryPath) {
+        into("${intellijPlatform.pluginConfiguration.name.get()}/bin")
+      }
+    }
+  }
 }
 
 kotlin {

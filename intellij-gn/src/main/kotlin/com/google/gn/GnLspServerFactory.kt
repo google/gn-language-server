@@ -14,15 +14,28 @@
 
 package com.google.gn
 
+import com.intellij.ide.plugins.PluginManagerCore
+import com.intellij.openapi.extensions.PluginId
 import com.intellij.openapi.project.Project
+import com.intellij.openapi.util.SystemInfo
 import com.redhat.devtools.lsp4ij.LanguageServerFactory
 import com.redhat.devtools.lsp4ij.server.ProcessStreamConnectionProvider
 import com.redhat.devtools.lsp4ij.server.StreamConnectionProvider
+import java.nio.file.Files
 
 class GnLspServerFactory : LanguageServerFactory {
   override fun createConnectionProvider(project: Project): StreamConnectionProvider {
+    val plugin = PluginManagerCore.getPlugin(PluginId.getId("com.google.gn"))
+    val binaryName = if (SystemInfo.isWindows) "gn-language-server.exe" else "gn-language-server"
+    val bundledBinary = plugin?.pluginPath?.resolve("bin")?.resolve(binaryName)
+    val command = if (bundledBinary != null && Files.exists(bundledBinary)) {
+      listOf(bundledBinary.toAbsolutePath().toString())
+    } else {
+      listOf("gn-language-server")
+    }
+
     return object : ProcessStreamConnectionProvider(
-      listOf("gn-language-server"),
+      command,
       project.basePath
     ) {}
   }

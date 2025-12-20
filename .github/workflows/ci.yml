@@ -96,6 +96,23 @@ jobs:
       with:
         name: vscode-gn-vsix-${{ matrix.vscode_target }}
         path: vscode-gn/*.vsix
+    - uses: actions/setup-java@v4
+      with:
+        distribution: 'zulu'
+        java-version: '21'
+    - uses: gradle/actions/setup-gradle@v4
+      with:
+        gradle-version: 8.14.3
+    - name: Build IntelliJ Plugin
+      working-directory: intellij-gn
+      shell: bash
+      run: |
+        gradle buildPlugin -PgnBinaryPath="../target/${{ matrix.rust_target }}/release/gn-language-server$(if [ "${{ matrix.os }}" = "windows-latest" ]; then echo ".exe"; fi)"
+        mv build/distributions/intellij-gn-*.zip build/distributions/intellij-gn-${{ matrix.vscode_target }}.zip
+    - uses: actions/upload-artifact@v4
+      with:
+        name: intellij-gn-${{ matrix.vscode_target }}
+        path: intellij-gn/build/distributions/*.zip
     - uses: actions/upload-artifact@v4
       with:
         name: gn-language-server-${{ matrix.rust_target }}
@@ -128,6 +145,11 @@ jobs:
       - uses: actions/download-artifact@v4
         with:
           pattern: vscode-gn-vsix-*
+          path: ${{ github.workspace }}/artifacts
+          merge-multiple: true
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: intellij-gn-*
           path: ${{ github.workspace }}/artifacts
           merge-multiple: true
       - run: ls -l .
