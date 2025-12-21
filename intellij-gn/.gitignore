@@ -8,8 +8,3 @@
 *.iws
 *.iml
 *.ipr
-
-# gradle
-/gradle
-/gradlew
-/gradlew.bat
