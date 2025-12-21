@@ -60,6 +60,36 @@ tasks {
   wrapper {
     gradleVersion = "8.14.3"
   }
+
+  val buildLanguageServer = register<Exec>("buildLanguageServer") {
+    commandLine("cargo", "build", "--release")
+    workingDir = file("..")
+  }
+
+  prepareSandbox {
+    val pluginName = project.name
+    val prebuiltsPath = System.getenv("GN_LSP_PREBUILTS")
+
+    if (prebuiltsPath != null) {
+      into("$pluginName/bin") {
+        from(prebuiltsPath)
+      }
+    } else {
+      dependsOn(buildLanguageServer)
+      val os = System.getProperty("os.name").lowercase()
+      val arch = System.getProperty("os.arch").lowercase()
+      val (platform, ext) = when {
+        os.contains("linux") -> "linux-x64" to ""
+        os.contains("mac") && arch == "aarch64" -> "darwin-arm64" to ""
+        os.contains("win") -> "win32-x64" to ".exe"
+        else -> return@prepareSandbox
+      }
+
+      into("$pluginName/bin/$platform") {
+        from(file("../target/release/gn-language-server$ext"))
+      }
+    }
+  }
 }
 
 kotlin {
