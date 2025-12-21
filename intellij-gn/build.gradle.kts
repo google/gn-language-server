@@ -19,7 +19,7 @@ plugins {
 }
 
 group = "com.google.gn"
-version = "0.0-SNAPSHOT"
+val version: String by project
 
 repositories {
   mavenCentral()
