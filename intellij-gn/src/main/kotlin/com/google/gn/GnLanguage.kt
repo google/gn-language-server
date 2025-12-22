@@ -17,5 +17,5 @@ package com.google.gn
 import com.intellij.lang.Language
 
 object GnLanguage : Language("GN") {
-  private fun readResolve(): Any = GnLanguage
+    private fun readResolve(): Any = GnLanguage
 }

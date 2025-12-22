@@ -18,8 +18,11 @@ import com.intellij.openapi.fileTypes.LanguageFileType
 import javax.swing.Icon
 
 object GnFileType : LanguageFileType(GnLanguage) {
-  override fun getName() = "GN"
-  override fun getDescription() = "GN build file"
-  override fun getDefaultExtension() = "gn"
-  override fun getIcon(): Icon? = null
+    override fun getName() = "GN"
+
+    override fun getDescription() = "GN build file"
+
+    override fun getDefaultExtension() = "gn"
+
+    override fun getIcon(): Icon? = null
 }

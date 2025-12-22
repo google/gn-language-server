@@ -20,18 +20,18 @@ import java.nio.file.Path
 import org.jetbrains.plugins.textmate.api.TextMateBundleProvider
 
 class GnTextMateBundleProvider : TextMateBundleProvider {
-  override fun getBundles(): List<TextMateBundleProvider.PluginBundle> {
-    val tempDir = Files.createTempDirectory(Path.of(PathManager.getTempPath()), "gn-textmate")
+    override fun getBundles(): List<TextMateBundleProvider.PluginBundle> {
+        val tempDir = Files.createTempDirectory(Path.of(PathManager.getTempPath()), "gn-textmate")
 
-    for (name in listOf("package.json", "syntaxes/gn.tmLanguage.json")) {
-      val resource = javaClass.classLoader.getResource("textmate/$name")
-      resource?.openStream()?.use { stream ->
-        val destination = tempDir.resolve(name)
-        Files.createDirectories(destination.parent)
-        Files.copy(stream, destination)
-      }
+        for (name in listOf("package.json", "syntaxes/gn.tmLanguage.json")) {
+            val resource = javaClass.classLoader.getResource("textmate/$name")
+            resource?.openStream()?.use { stream ->
+                val destination = tempDir.resolve(name)
+                Files.createDirectories(destination.parent)
+                Files.copy(stream, destination)
+            }
+        }
+
+        return listOf(TextMateBundleProvider.PluginBundle("gn", tempDir))
     }
-
-    return listOf(TextMateBundleProvider.PluginBundle("gn", tempDir))
-  }
 }

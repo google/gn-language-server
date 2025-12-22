@@ -13,87 +13,94 @@
 // limitations under the License.
 
 plugins {
-  id("java")
-  id("org.jetbrains.kotlin.jvm") version "2.1.20"
-  id("org.jetbrains.intellij.platform") version "2.10.2"
+    id("java")
+    id("org.jetbrains.kotlin.jvm") version "2.1.20"
+    id("org.jetbrains.intellij.platform") version "2.10.2"
+    id("com.diffplug.spotless") version "8.1.0"
 }
 
 group = "com.google.gn"
 val version: String by project
 
 repositories {
-  mavenCentral()
-  intellijPlatform {
-    defaultRepositories()
-  }
+    mavenCentral()
+    intellijPlatform {
+        defaultRepositories()
+    }
 }
 
 dependencies {
-  intellijPlatform {
-    intellijIdea("2025.2.4")
-    testFramework(org.jetbrains.intellij.platform.gradle.TestFrameworkType.Platform)
+    intellijPlatform {
+        intellijIdea("2025.2.4")
+        testFramework(org.jetbrains.intellij.platform.gradle.TestFrameworkType.Platform)
 
-    bundledPlugin("org.jetbrains.plugins.textmate")
-    plugin("com.redhat.devtools.lsp4ij:0.19.1")
-  }
+        bundledPlugin("org.jetbrains.plugins.textmate")
+        plugin("com.redhat.devtools.lsp4ij:0.19.1")
+    }
 }
 
 intellijPlatform {
-  pluginConfiguration {
-    ideaVersion {
-      sinceBuild = "242"
-    }
+    pluginConfiguration {
+        ideaVersion {
+            sinceBuild = "242"
+        }
 
-    changeNotes = """
+        changeNotes = """
         Initial version
     """.trimIndent()
-  }
+    }
 }
 
 tasks {
-  // Set the JVM compatibility versions
-  withType<JavaCompile> {
-    sourceCompatibility = "21"
-    targetCompatibility = "21"
-  }
-
-  wrapper {
-    gradleVersion = "8.14.3"
-  }
-
-  val buildLanguageServer = register<Exec>("buildLanguageServer") {
-    commandLine("cargo", "build", "--release")
-    workingDir = file("..")
-  }
-
-  prepareSandbox {
-    val pluginName = project.name
-    val prebuiltsPath = System.getenv("GN_LSP_PREBUILTS")
-
-    if (prebuiltsPath != null) {
-      into("$pluginName/bin") {
-        from(prebuiltsPath)
-      }
-    } else {
-      dependsOn(buildLanguageServer)
-      val os = System.getProperty("os.name").lowercase()
-      val arch = System.getProperty("os.arch").lowercase()
-      val (platform, ext) = when {
-        os.contains("linux") -> "linux-x64" to ""
-        os.contains("mac") && arch == "aarch64" -> "darwin-arm64" to ""
-        os.contains("win") -> "win32-x64" to ".exe"
-        else -> return@prepareSandbox
-      }
-
-      into("$pluginName/bin/$platform") {
-        from(file("../target/release/gn-language-server$ext"))
-      }
+    // Set the JVM compatibility versions
+    withType<JavaCompile> {
+        sourceCompatibility = "21"
+        targetCompatibility = "21"
     }
-  }
+
+    wrapper {
+        gradleVersion = "8.14.3"
+    }
+
+    val buildLanguageServer = register<Exec>("buildLanguageServer") {
+        commandLine("cargo", "build", "--release")
+        workingDir = file("..")
+    }
+
+    prepareSandbox {
+        val pluginName = project.name
+        val prebuiltsPath = System.getenv("GN_LSP_PREBUILTS")
+
+        if (prebuiltsPath != null) {
+            into("$pluginName/bin") {
+                from(prebuiltsPath)
+            }
+        } else {
+            dependsOn(buildLanguageServer)
+            val os = System.getProperty("os.name").lowercase()
+            val arch = System.getProperty("os.arch").lowercase()
+            val (platform, ext) = when {
+                os.contains("linux") -> "linux-x64" to ""
+                os.contains("mac") && arch == "aarch64" -> "darwin-arm64" to ""
+                os.contains("win") -> "win32-x64" to ".exe"
+                else -> return@prepareSandbox
+            }
+
+            into("$pluginName/bin/$platform") {
+                from(file("../target/release/gn-language-server$ext"))
+            }
+        }
+    }
 }
 
 kotlin {
-  compilerOptions {
-    jvmTarget.set(org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_21)
-  }
+    compilerOptions {
+        jvmTarget.set(org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_21)
+    }
+}
+
+spotless {
+    kotlin {
+        ktfmt("0.60").kotlinlangStyle()
+    }
 }
