@@ -100,14 +100,10 @@ impl Variable<'_> {
         } else {
             None
         };
-        let label_details = if first_assignment.document.path == current_file.document.path {
-            None
-        } else {
-            Some(CompletionItemLabelDetails {
-                detail: None,
-                description: Some(import_path),
-            })
-        };
+        let label_details = need_import.then_some(CompletionItemLabelDetails {
+            detail: None,
+            description: Some(import_path),
+        });
         CompletionItem {
             label: self.name.to_string(),
             kind: Some(CompletionItemKind::VARIABLE),
@@ -130,14 +126,10 @@ impl Template<'_> {
         } else {
             None
         };
-        let label_details = if self.document.path == current_file.document.path {
-            None
-        } else {
-            Some(CompletionItemLabelDetails {
-                detail: None,
-                description: Some(import_path),
-            })
-        };
+        let label_details = need_import.then_some(CompletionItemLabelDetails {
+            detail: None,
+            description: Some(import_path),
+        });
         CompletionItem {
             label: self.name.to_string(),
             kind: Some(CompletionItemKind::FUNCTION),
