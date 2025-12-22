@@ -28,6 +28,10 @@ pub trait Node<'i> {
     fn children(&self) -> Vec<&dyn Node<'i>>;
     fn span(&self) -> Span<'i>;
 
+    fn as_block(&self) -> Option<&Block<'i>> {
+        None
+    }
+
     fn as_statement(&self) -> Option<&Statement<'i>> {
         None
     }
@@ -143,6 +147,16 @@ pub enum LValue<'i> {
     Identifier(Box<Identifier<'i>>),
     ArrayAccess(Box<ArrayAccess<'i>>),
     ScopeAccess(Box<ScopeAccess<'i>>),
+}
+
+impl<'i> LValue<'i> {
+    pub fn primary_identifier(&self) -> &Identifier<'i> {
+        match self {
+            LValue::Identifier(identifier) => identifier,
+            LValue::ArrayAccess(array_access) => &array_access.array,
+            LValue::ScopeAccess(scope_access) => &scope_access.scope,
+        }
+    }
 }
 
 impl<'i> Node<'i> for LValue<'i> {
@@ -276,6 +290,10 @@ impl<'i> Node<'i> for Block<'i> {
 
     fn span(&self) -> Span<'i> {
         self.span
+    }
+
+    fn as_block(&self) -> Option<&Block<'i>> {
+        Some(self)
     }
 }
 

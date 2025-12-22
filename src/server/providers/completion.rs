@@ -14,6 +14,7 @@
 
 use std::{collections::HashSet, path::Path, sync::Arc};
 
+use either::Either;
 use itertools::Itertools;
 use tower_lsp::lsp_types::{
     Command, CompletionItem, CompletionItemKind, CompletionItemLabelDetails, CompletionParams,
@@ -23,7 +24,7 @@ use tower_lsp::lsp_types::{
 use crate::{
     analyzer::{AnalyzedFile, Template, Variable, WorkspaceAnalyzer},
     common::{builtins::BUILTINS, error::Result, utils::format_path},
-    parser::{Block, Node},
+    parser::{Block, Node, Statement},
     server::{
         imports::create_import_edit, providers::utils::get_text_document_path, symbols::SymbolSet,
         RequestContext,
@@ -144,6 +145,37 @@ impl Template<'_> {
     }
 }
 
+fn is_statement_context(parsed_root: &Block<'_>, offset: usize) -> bool {
+    let parents: Vec<_> = parsed_root
+        .walk()
+        .filter(|node| node.span().start() <= offset && offset <= node.span().end())
+        .collect();
+    for node in parents.into_iter().rev() {
+        if node.as_block().is_some() {
+            return true;
+        }
+        if let Some(statement) = node.as_statement() {
+            match statement {
+                Statement::Assignment(assignment) => {
+                    let primary_span = assignment.lvalue.primary_identifier().span;
+                    return offset <= primary_span.end();
+                }
+                Statement::Call(call) => {
+                    let function_span = call.function.span;
+                    return offset <= function_span.end();
+                }
+                Statement::Condition(_) => {
+                    return false;
+                }
+                Statement::Error(_) => {
+                    return true;
+                }
+            }
+        }
+    }
+    true
+}
+
 async fn build_identifier_completions(
     context: &RequestContext,
     current_file: &Arc<AnalyzedFile>,
@@ -160,6 +192,7 @@ async fn build_identifier_completions(
     let environment = workspace.analyze_at(current_file, offset, context.request_time);
     let symbols = SymbolSet::workspace(workspace).await;
 
+    // Index the builtin variables. This is used to drop user reassignments.
     let builtin_variables: HashSet<&str> = BUILTINS
         .predefined_variables
         .iter()
@@ -171,35 +204,55 @@ async fn build_identifier_completions(
     let known_variables: HashSet<&str> = environment.get().variables.keys().copied().collect();
     let known_templates: HashSet<&str> = environment.get().templates.keys().copied().collect();
 
-    // Enumerate local variables/templates.
-    let local_variable_items = environment
+    // Enumerate variables/templates defined in the current file.
+    let current_path = current_file.document.path.as_path();
+    let (local_variables, imported_variables): (Vec<_>, Vec<_>) = environment
         .get()
         .variables
         .values()
         .filter(|variable| !builtin_variables.contains(variable.name))
+        .partition(|variable| variable.assignments.first().unwrap().document.path == current_path);
+    let local_variable_items = local_variables
+        .into_iter()
         .map(|variable| variable.as_completion_item(current_file, false));
-    let local_template_items = environment
+    let imported_variable_items = imported_variables
+        .into_iter()
+        .map(|variable| variable.as_completion_item(current_file, false));
+    let (local_templates, imported_templates): (Vec<_>, Vec<_>) = environment
         .get()
         .templates
         .values()
+        .partition(|template| template.document.path == current_path);
+    let local_template_items = local_templates
+        .into_iter()
+        .map(|template| template.as_completion_item(current_file, false));
+    let imported_template_items = imported_templates
+        .into_iter()
         .map(|template| template.as_completion_item(current_file, false));
 
     // Enumerate workspace variables/templates.
-    let workspace_items: Vec<_> = if workspace_completion {
-        let workspace_variable_items = symbols
-            .variables()
-            .filter(|variable| !builtin_variables.contains(variable.name))
-            .filter(|variable| !known_variables.contains(variable.name))
-            .map(|variable| variable.as_completion_item(current_file, true));
-        let workspace_template_items = symbols
-            .templates()
-            .filter(|template| !known_templates.contains(template.name))
-            .map(|template| template.as_completion_item(current_file, true));
-        workspace_variable_items
-            .chain(workspace_template_items)
-            .collect()
+    let workspace_variable_items = if workspace_completion {
+        Either::Left(
+            symbols
+                .variables()
+                .filter(|variable| !builtin_variables.contains(variable.name))
+                .filter(|variable| !known_variables.contains(variable.name))
+                // .filter(|variable| variable.assignments.first().unwrap().document.path != current_path)
+                .map(|variable| variable.as_completion_item(current_file, true)),
+        )
     } else {
-        Vec::new()
+        Either::Right(std::iter::empty())
+    };
+    let workspace_template_items = if workspace_completion {
+        Either::Left(
+            symbols
+                .templates()
+                .filter(|template| !known_templates.contains(template.name))
+                // .filter(|template| template.document.path != current_path)
+                .map(|template| template.as_completion_item(current_file, true)),
+        )
+    } else {
+        Either::Right(std::iter::empty())
     };
 
     // Enumerate builtins.
@@ -216,7 +269,6 @@ async fn build_identifier_completions(
             })),
             ..Default::default()
         });
-
     let builtin_variable_items = BUILTINS
         .predefined_variables
         .iter()
@@ -230,22 +282,40 @@ async fn build_identifier_completions(
             })),
             ..Default::default()
         });
+    let builtin_items = builtin_variable_items.chain(builtin_function_items);
 
     // Keywords.
-    let keyword_items = ["true", "false", "if", "else"].map(|name| CompletionItem {
+    let literal_items = ["true", "false"].map(|name| CompletionItem {
+        label: name.to_string(),
+        kind: Some(CompletionItemKind::KEYWORD),
+        ..Default::default()
+    });
+    let conditional_items = ["if", "else"].map(|name| CompletionItem {
         label: name.to_string(),
         kind: Some(CompletionItemKind::KEYWORD),
         ..Default::default()
     });
 
-    Ok(keyword_items
-        .into_iter()
-        .chain(builtin_function_items)
-        .chain(builtin_variable_items)
-        .chain(local_variable_items)
-        .chain(local_template_items)
-        .chain(workspace_items)
-        .collect())
+    if is_statement_context(current_file.parsed_root.get(), offset) {
+        // No external variables.
+        Ok(conditional_items
+            .into_iter()
+            .chain(builtin_items)
+            .chain(local_variable_items)
+            .chain(local_template_items)
+            .chain(imported_template_items)
+            .chain(workspace_template_items)
+            .collect())
+    } else {
+        // No templates.
+        Ok(literal_items
+            .into_iter()
+            .chain(builtin_items)
+            .chain(local_variable_items)
+            .chain(imported_variable_items)
+            .chain(workspace_variable_items)
+            .collect())
+    }
 }
 
 pub async fn completion(
@@ -301,7 +371,7 @@ mod tests {
     use super::*;
 
     #[tokio::test]
-    async fn test_smoke() {
+    async fn test_smoke_statement_context() {
         let response = completion(
             &RequestContext::new_for_testing(Some(&testdata("workspaces/completion"))),
             CompletionParams {
@@ -310,7 +380,85 @@ mod tests {
                         uri: Url::from_file_path(testdata("workspaces/completion/BUILD.gn"))
                             .unwrap(),
                     },
-                    position: Position::new(36, 0),
+                    // assert(true)
+                    //   ^
+                    position: Position::new(36, 4),
+                },
+                work_done_progress_params: Default::default(),
+                partial_result_params: Default::default(),
+                context: Default::default(),
+            },
+        )
+        .await
+        .unwrap()
+        .unwrap();
+
+        let CompletionResponse::Array(items) = response else {
+            panic!();
+        };
+
+        // Don't return duplicates.
+        let duplicates: Vec<_> = items
+            .iter()
+            .filter(|item| item.label != "cflags" && item.label != "pool")
+            .map(|item| item.label.as_str())
+            .duplicates()
+            .collect();
+        assert!(
+            duplicates.is_empty(),
+            "Duplicates in completion items: {}",
+            duplicates.iter().sorted().join(", ")
+        );
+
+        // Check items.
+        let names: HashSet<_> = items.iter().map(|item| item.label.as_str()).collect();
+
+        let expectation = [
+            ("config_variable", false),
+            ("_config_variable", false),
+            ("config_template", true),
+            ("_config_template", false),
+            ("import_variable", false),
+            ("_import_variable", false),
+            ("import_template", true),
+            ("_import_template", false),
+            ("indirect_variable", false),
+            ("_indirect_variable", false),
+            ("indirect_template", true),
+            ("_indirect_template", false),
+            ("outer_variable", true),
+            ("_outer_variable", true),
+            ("outer_template", true),
+            ("_outer_template", true),
+            ("inner_variable", true),
+            ("_inner_variable", true),
+            ("inner_template", true),
+            ("_inner_template", true),
+            ("child_variable", false),
+            ("_child_variable", false),
+            ("child_template", false),
+            ("_child_template", false),
+        ];
+
+        for (name, want) in expectation {
+            let got = names.contains(name);
+            assert_eq!(got, want, "{name}: got {got}, want {want}");
+        }
+    }
+
+    #[tokio::test]
+    async fn test_smoke_non_statement_context() {
+        let response = completion(
+            &RequestContext::new_for_testing(Some(&testdata("workspaces/completion"))),
+            CompletionParams {
+                text_document_position: TextDocumentPositionParams {
+                    text_document: TextDocumentIdentifier {
+                        uri: Url::from_file_path(testdata("workspaces/completion/BUILD.gn"))
+                            .unwrap(),
+                    },
+                    // assert(true)
+                    //          ^
+                    position: Position::new(36, 11),
                 },
                 work_done_progress_params: Default::default(),
                 partial_result_params: Default::default(),
@@ -344,24 +492,24 @@ mod tests {
         let expectation = [
             ("config_variable", true),
             ("_config_variable", false),
-            ("config_template", true),
+            ("config_template", false),
             ("_config_template", false),
             ("import_variable", true),
             ("_import_variable", false),
-            ("import_template", true),
+            ("import_template", false),
             ("_import_template", false),
             ("indirect_variable", true),
             ("_indirect_variable", false),
-            ("indirect_template", true),
+            ("indirect_template", false),
             ("_indirect_template", false),
             ("outer_variable", true),
             ("_outer_variable", true),
-            ("outer_template", true),
-            ("_outer_template", true),
+            ("outer_template", false),
+            ("_outer_template", false),
             ("inner_variable", true),
             ("_inner_variable", true),
-            ("inner_template", true),
-            ("_inner_template", true),
+            ("inner_template", false),
+            ("_inner_template", false),
             ("child_variable", false),
             ("_child_variable", false),
             ("child_template", false),

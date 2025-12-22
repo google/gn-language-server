@@ -21,13 +21,13 @@ statement = !{ assignment | condition | call }
 lvalue = { array_access | scope_access | identifier }
 assignment = { lvalue ~ assign_op ~ expr }
 call = ${ identifier ~ skip ~ "(" ~ skip ~ expr_list ~ skip ~ ")" ~ (skip ~ block)? }
-condition = { "if" ~ "(" ~ expr ~ ")" ~ block ~ ("else" ~ (condition | block))? }
+condition = ${ "if" ~ skip ~ "(" ~ skip ~ expr ~ skip ~ ")" ~ skip ~ block ~ (skip ~ "else" ~ skip ~ (condition | block))? }
 error = { rest_of_line }
 block = ${ "{" ~ (WHITESPACE | comment | statement | error)* ~ "}" }
 
 array_access = !{ identifier ~ "[" ~ expr ~ "]" }
 scope_access = !{ identifier ~ "." ~ identifier }
-expr = !{ prefix* ~ primary ~ (infix ~ prefix* ~ primary)* }
+expr = ${ (prefix ~ skip)* ~ primary ~ (skip ~ infix ~ skip ~ (prefix ~ skip)* ~ primary)* }
 prefix = _{ not }
 infix = _{ add | sub | le | lt | ge | gt | eq | ne | and | or }
 primary = _{ call | array_access | scope_access | block | paren_expr | list | integer | string | identifier }

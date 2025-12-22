@@ -34,5 +34,5 @@ template("outer_template") {
     template("_child_template") {}
   }
 
-  # complete here
+  assert(true)
 }
