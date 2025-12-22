@@ -25,7 +25,10 @@
         "command": "gn.openBuildFile",
         "title": "Open the nearest BUILD.gn",
         "category": "GN",
-        "icon": "$(go-to-file)"
+        "icon": {
+          "light": "./icons/gn-light.svg",
+          "dark": "./icons/gn-dark.svg"
+        }
       }
     ],
     "menus": {
