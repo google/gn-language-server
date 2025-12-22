@@ -80,9 +80,9 @@ tasks {
             val os = System.getProperty("os.name").lowercase()
             val arch = System.getProperty("os.arch").lowercase()
             val (platform, ext) = when {
-                os.contains("linux") -> "linux-x64" to ""
-                os.contains("mac") && arch == "aarch64" -> "darwin-arm64" to ""
-                os.contains("win") -> "win32-x64" to ".exe"
+                os.contains("linux") -> "x86_64-unknown-linux-musl" to ""
+                os.contains("mac") && arch == "aarch64" -> "aarch64-apple-darwin" to ""
+                os.contains("win") -> "x86_64-pc-windows-msvc" to ".exe"
                 else -> return@prepareSandbox
             }
 

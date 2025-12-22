@@ -39,9 +39,9 @@ class GnLspServerFactory : LanguageServerFactory {
 
         val target =
             when {
-                SystemInfo.isLinux && SystemInfo.is64Bit -> "linux-x64"
-                SystemInfo.isMac && SystemInfo.isAarch64 -> "darwin-arm64"
-                SystemInfo.isWindows && SystemInfo.is64Bit -> "win32-x64"
+                SystemInfo.isLinux && SystemInfo.is64Bit -> "x86_64-unknown-linux-musl"
+                SystemInfo.isMac && SystemInfo.isAarch64 -> "aarch64-apple-darwin"
+                SystemInfo.isWindows && SystemInfo.is64Bit -> "x86_64-pc-windows-msvc"
                 else ->
                     throw RuntimeException(
                         "Unsupported platform: ${SystemInfo.OS_NAME} (${SystemInfo.OS_ARCH})"
