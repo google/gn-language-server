@@ -51,6 +51,10 @@ def main():
             ['npm', 'version', new_version],
             cwd='vscode-gn',
             stdout=subprocess.DEVNULL)
+        subprocess.check_call(
+            ['sed', '-i', f's/^version=.*/version={new_version}/', 'gradle.properties'],
+            cwd='intellij-gn',
+            stdout=subprocess.DEVNULL)
     else:
         print(
             'INFO: Not updating manifests as --update was not set',
