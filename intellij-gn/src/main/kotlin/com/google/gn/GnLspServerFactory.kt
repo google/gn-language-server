@@ -18,6 +18,7 @@ import com.intellij.ide.plugins.PluginManagerCore
 import com.intellij.openapi.extensions.PluginId
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.util.SystemInfo
+import com.intellij.util.system.CpuArch
 import com.redhat.devtools.lsp4ij.LanguageServerFactory
 import com.redhat.devtools.lsp4ij.server.ProcessStreamConnectionProvider
 import com.redhat.devtools.lsp4ij.server.StreamConnectionProvider
@@ -39,9 +40,9 @@ class GnLspServerFactory : LanguageServerFactory {
 
         val target =
             when {
-                SystemInfo.isLinux && SystemInfo.is64Bit -> "x86_64-unknown-linux-musl"
-                SystemInfo.isMac && SystemInfo.isAarch64 -> "aarch64-apple-darwin"
-                SystemInfo.isWindows && SystemInfo.is64Bit -> "x86_64-pc-windows-msvc"
+                SystemInfo.isLinux && CpuArch.isIntel64() -> "x86_64-unknown-linux-musl"
+                SystemInfo.isMac && CpuArch.isArm64() -> "aarch64-apple-darwin"
+                SystemInfo.isWindows && CpuArch.isIntel64() -> "x86_64-pc-windows-msvc"
                 else ->
                     throw RuntimeException(
                         "Unsupported platform: ${SystemInfo.OS_NAME} (${SystemInfo.OS_ARCH})"
