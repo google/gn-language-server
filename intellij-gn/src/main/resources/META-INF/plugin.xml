@@ -18,9 +18,27 @@
   <id>com.google.gn</id>
   <name>GN</name>
   <vendor url="https://www.google.com/">Google</vendor>
-  <description>Language server for GN, the build configuration language used in
-    Chromium, Fuchsia, and other projects.
-  </description>
+  <description><![CDATA[
+A language server for GN, the build configuration language used in Chromium, Fuchsia, and other projects.
+
+<h2>Features</h2>
+<ul>
+<li>Syntax highlighting</li>
+<li>Syntax error reporting</li>
+<li>Context-aware completion and auto-import</li>
+<li>Hover documentation</li>
+<li>Go to definition</li>
+<li>Finding target references</li>
+<li>Following imports</li>
+<li>Following dependencies</li>
+<li>Quick fix</li>
+<li>Sticky scroll with useful lines</li>
+<li>Code lens</li>
+<li>Outline</li>
+<li>Code folding</li>
+<li>Formatting</li>
+</ul>
+]]></description>
 
   <depends>com.intellij.modules.platform</depends>
   <depends>com.redhat.devtools.lsp4ij</depends>
