@@ -7,6 +7,7 @@
   - Suggest completion items from the workspace
   - Auto-import variables and templates on completion
   - Quick fix to import variables
+  - Context-aware completion
   - Code lens for targets
   - Support workspace symbols
 - Fixes:
