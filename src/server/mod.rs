@@ -47,9 +47,15 @@ mod imports;
 mod providers;
 mod symbols;
 
+#[derive(Default, serde::Serialize, serde::Deserialize)]
+pub struct InitializationOptions {
+    pub vscode_extension: bool,
+}
+
 struct ServerContext {
     pub storage: Arc<Mutex<DocumentStorage>>,
     pub analyzer: OnceLock<Arc<Analyzer>>,
+    pub options: OnceLock<Arc<InitializationOptions>>,
     pub client: TestableClient,
 }
 
@@ -58,6 +64,7 @@ impl ServerContext {
         Self {
             storage,
             analyzer: OnceLock::new(),
+            options: OnceLock::new(),
             client,
         }
     }
@@ -73,9 +80,13 @@ impl ServerContext {
             WorkspaceFinder::new(client_root),
             IndexingLevel::Disabled,
         )));
+        let options = OnceLock::new();
+        let _ = options.set(Default::default());
+
         Self {
             storage,
             analyzer,
+            options,
             client: TestableClient::new_for_testing(),
         }
     }
@@ -84,6 +95,7 @@ impl ServerContext {
         RequestContext {
             storage: self.storage.clone(),
             analyzer: self.analyzer.get().unwrap().clone(),
+            options: self.options.get().unwrap().clone(),
             client: self.client.clone(),
             request_time: Instant::now(),
         }
@@ -94,6 +106,7 @@ impl ServerContext {
 pub struct RequestContext {
     pub storage: Arc<Mutex<DocumentStorage>>,
     pub analyzer: Arc<Analyzer>,
+    pub options: Arc<InitializationOptions>,
     pub client: TestableClient,
     pub request_time: Instant,
 }
@@ -133,6 +146,12 @@ impl LanguageServer for Backend {
             configurations.indexing_level(),
         ));
         self.context.analyzer.set(analyzer).ok();
+
+        let options: InitializationOptions = params
+            .initialization_options
+            .and_then(|value| serde_json::from_value(value).ok())
+            .unwrap_or_default();
+        self.context.options.set(Arc::new(options)).ok();
 
         Ok(InitializeResult {
             capabilities: ServerCapabilities {

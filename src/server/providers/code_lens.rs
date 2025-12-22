@@ -73,6 +73,9 @@ pub async fn code_lens(
     context: &RequestContext,
     params: CodeLensParams,
 ) -> Result<Option<Vec<CodeLens>>> {
+    if !context.options.vscode_extension {
+        return Ok(None);
+    }
     let configs = context.client.configurations().await;
     if !configs.target_lens {
         return Ok(None);

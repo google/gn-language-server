@@ -31,6 +31,10 @@ import {
 
 const EXECUTABLE_SUFFIX: string = process.platform === 'win32' ? '.exe' : '';
 
+interface InitializationOptions {
+  vscode_extension: boolean;
+}
+
 function reportAsyncError(
   output: vscode.OutputChannel,
   result: Promise<void>
@@ -181,6 +185,9 @@ async function chooseImportCandidates(
 class GnLanguageClient extends LanguageClient {
   constructor(context: vscode.ExtensionContext, output: vscode.OutputChannel) {
     const clientOptions: LanguageClientOptions = {
+      initializationOptions: {
+        vscode_extension: true,
+      } as InitializationOptions,
       documentSelector: [
         {scheme: 'file', pattern: '**/*.gn'},
         {scheme: 'file', pattern: '**/*.gni'},

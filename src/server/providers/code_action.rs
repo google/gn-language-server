@@ -67,22 +67,29 @@ async fn compute_import_actions(
     if imports.is_empty() {
         return Vec::new();
     }
-    if let Ok(only_import) = imports.iter().exactly_one() {
-        return vec![CodeActionOrCommand::CodeAction(CodeAction {
-            title: format!("Import `{name}` from `{only_import}`"),
-            kind: Some(CodeActionKind::QUICKFIX),
-            diagnostics: Some(vec![diagnostic.clone()]),
-            edit: Some(WorkspaceEdit {
-                changes: Some(HashMap::from([(
-                    Url::from_file_path(&current_file.document.path).unwrap(),
-                    vec![create_import_edit(&current_file, only_import)],
-                )])),
-                ..Default::default()
-            }),
-            command: None,
-            is_preferred: Some(true),
-            ..Default::default()
-        })];
+
+    let use_picker = context.options.vscode_extension && imports.len() >= 2;
+    if !use_picker {
+        return imports
+            .iter()
+            .map(|import| {
+                CodeActionOrCommand::CodeAction(CodeAction {
+                    title: format!("Import `{name}` from `{import}`"),
+                    kind: Some(CodeActionKind::QUICKFIX),
+                    diagnostics: Some(vec![diagnostic.clone()]),
+                    edit: Some(WorkspaceEdit {
+                        changes: Some(HashMap::from([(
+                            Url::from_file_path(&current_file.document.path).unwrap(),
+                            vec![create_import_edit(&current_file, import)],
+                        )])),
+                        ..Default::default()
+                    }),
+                    command: None,
+                    is_preferred: Some(true),
+                    ..Default::default()
+                })
+            })
+            .collect();
     }
 
     let data = ChooseImportCandidatesData {
