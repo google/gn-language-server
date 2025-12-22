@@ -63,7 +63,7 @@ tasks {
     }
 
     val buildLanguageServer = register<Exec>("buildLanguageServer") {
-        commandLine("cargo", "build", "--release")
+        commandLine("sh", "-c", "cargo build --release")
         workingDir = file("..")
     }
 
