@@ -31,7 +31,7 @@ repositories {
 
 dependencies {
     intellijPlatform {
-        intellijIdea("2025.2.4")
+        intellijIdea("2024.2.4")
         testFramework(org.jetbrains.intellij.platform.gradle.TestFrameworkType.Platform)
 
         bundledPlugin("org.jetbrains.plugins.textmate")
