@@ -138,14 +138,16 @@ jobs:
       working-directory: lsp-prebuilts
     - run: ls -lR .
       working-directory: lsp-prebuilts
-    - run: ./gradlew buildPlugin
+    - run: ./gradlew signPlugin
       working-directory: intellij-gn
       env:
         GN_LSP_PREBUILTS: ${{ github.workspace }}/lsp-prebuilts
+        JETBRAINS_CERT: ${{ secrets.JETBRAINS_CERT }}
+        JETBRAINS_PRIVATE_KEY: ${{ secrets.JETBRAINS_PRIVATE_KEY }}
     - uses: actions/upload-artifact@v4
       with:
         name: intellij-gn
-        path: intellij-gn/build/distributions/intellij-gn-*.zip
+        path: intellij-gn/build/distributions/intellij-gn-*-signed.zip
 
   attestation:
     runs-on: ubuntu-latest
