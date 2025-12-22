@@ -24,5 +24,5 @@ object GnFileType : LanguageFileType(GnLanguage) {
 
     override fun getDefaultExtension() = "gn"
 
-    override fun getIcon(): Icon? = null
+    override fun getIcon(): Icon = GnIcons.FILE
 }
