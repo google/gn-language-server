@@ -59,6 +59,8 @@ intellijPlatform {
         token = providers.environmentVariable("JETBRAINS_TOKEN")
         channels = providers.gradleProperty("channel").map { listOf(it) }
     }
+
+    buildSearchableOptions = false
 }
 
 tasks {
