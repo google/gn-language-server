@@ -182,6 +182,8 @@ jobs:
         with:
           pattern: intellij-gn
           path: ${{ github.workspace }}/artifacts
+      - run: mv intellij-gn/*.zip ./ && rmdir intellij-gn
+        working-directory: artifacts
       - run: ls -l .
         working-directory: artifacts
       - run: gh release upload "${{ github.ref_name }}" artifacts/*
