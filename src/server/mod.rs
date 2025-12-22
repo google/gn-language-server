@@ -81,7 +81,9 @@ impl ServerContext {
             IndexingLevel::Disabled,
         )));
         let options = OnceLock::new();
-        let _ = options.set(Default::default());
+        let _ = options.set(Arc::new(InitializationOptions {
+            vscode_extension: true,
+        }));
 
         Self {
             storage,
