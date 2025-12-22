@@ -121,15 +121,21 @@ jobs:
     - uses: actions/download-artifact@v4
       with:
         pattern: gn-language-server-x86_64-unknown-linux-musl
-        path: ${{ github.workspace }}/lsp-prebuilts/x86_64-unknown-linux-musl
+        path: ${{ github.workspace }}/lsp-prebuilts
     - uses: actions/download-artifact@v4
       with:
         pattern: gn-language-server-aarch64-apple-darwin
-        path: ${{ github.workspace }}/lsp-prebuilts/aarch64-apple-darwin
+        path: ${{ github.workspace }}/lsp-prebuilts
     - uses: actions/download-artifact@v4
       with:
         pattern: gn-language-server-x86_64-pc-windows-msvc
-        path: ${{ github.workspace }}/lsp-prebuilts/x86_64-pc-windows-msvc
+        path: ${{ github.workspace }}/lsp-prebuilts
+    - run: mv gn-language-server-x86_64-unknown-linux-musl x86_64-unknown-linux-musl
+      working-directory: lsp-prebuilts
+    - run: mv gn-language-server-aarch64-apple-darwin aarch64-apple-darwin
+      working-directory: lsp-prebuilts
+    - run: mv gn-language-server-x86_64-pc-windows-msvc x86_64-pc-windows-msvc
+      working-directory: lsp-prebuilts
     - run: ls -lR .
       working-directory: lsp-prebuilts
     - run: ./gradlew buildPlugin
