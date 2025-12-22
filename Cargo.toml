@@ -10,6 +10,7 @@ exclude = [
     "docs",
     "intellij-gn",
     "testdata",
+    "third_party",
     "vscode-gn",
 ]
 

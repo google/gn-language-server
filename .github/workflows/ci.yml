@@ -228,7 +228,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@8a40291d6a0a08b8fb98b13bad5a0305b42d5f9c  # 1.92.0
-      - run: if ! python3 scripts/is_prerelease.py; then cargo publish; fi
+      - run: cargo publish
         env:
           CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
         if: startsWith(github.ref, 'refs/tags/v')

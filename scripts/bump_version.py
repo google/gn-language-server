@@ -45,7 +45,7 @@ def main():
 
     if options.update:
         subprocess.check_call(
-            ['cargo', 'set-version', new_version],
+            ['cargo', 'set-version', f'{new_version}-prerelease'],
             stdout=subprocess.DEVNULL)
         subprocess.check_call(
             ['npm', 'version', new_version],
