@@ -49,6 +49,16 @@ intellijPlatform {
         Initial version
     """.trimIndent()
     }
+
+    signing {
+        certificateChain = providers.environmentVariable("JETBRAINS_CERT")
+        privateKey = providers.environmentVariable("JETBRAINS_PRIVATE_KEY")
+    }
+
+    publishing {
+        token = providers.environmentVariable("JETBRAINS_TOKEN")
+        channels = providers.gradleProperty("channel").map { listOf(it) }
+    }
 }
 
 tasks {
