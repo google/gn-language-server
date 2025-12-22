@@ -13,6 +13,7 @@
   - Fix crash on completing foreach variables
   - Fix incorrect analysis for circular imports
 - Misc:
+  - Add the extension icon and the file icon
   - Update GN base version to support `path_exists`
   - Improve workspace scan efficiency
   - Add build attestation
