@@ -16,7 +16,7 @@
 
 <idea-plugin>
   <id>com.google.gn</id>
-  <name>GN</name>
+  <name>GN Language</name>
   <vendor url="https://nya3.jp/">Shuhei Takahashi</vendor>
   <description><![CDATA[
 A language server for GN, the build configuration language used in Chromium, Fuchsia, and other projects.
