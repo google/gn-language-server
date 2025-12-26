@@ -119,6 +119,8 @@ That is:
 - Pre-release versions are `1.<odd>.x`
 - Release versions are `1.<even>.x`
 
+For Rust releases on crates.io, we use `1.<even>.x-prerelease` for pre-releases.
+
 ## Architecture
 
 For an overview of the project's architecture, see [ARCHITECTURE.md](./ARCHITECTURE.md).
