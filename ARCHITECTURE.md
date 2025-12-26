@@ -101,11 +101,27 @@ The analyzer is the brain of the language server. It consumes the AST and builds
     -   `analyze_file(path)`: Returns the cached `AnalyzedFile`.
     -   `analyze_at(file, pos)`: Returns an `Environment` representing the state of the program at `pos`, aggregating definitions from the build config and imports.
 
+### Diagnostics (`src/diagnostics/`)
+
+This component handles the generation of diagnostics (errors and warnings) for the user.
+-   It aggregates syntax errors produced by the `pest` parser.
+-   It includes an "undefined identifier" check (`undefined.rs`) which scans the resolved `Environment` to ensure all used variables are defined.
+
 ### LSP Feature Providers (`src/server/providers/`)
 
 Each LSP feature is implemented in its own module. These providers consume the data from the Semantic Analyzer to generate responses for the client. Examples include `completion`, `hover`, `goto_definition`, and `references`.
 
-## 4. Data Flow Example: "Go to Definition"
+## 4. Clients
+
+The language server is designed to be client-agnostic, communicating via standard input/output. However, two primary clients are maintained in this repository:
+
+### VS Code Extension (`vscode-gn`)
+A standard TypeScript extension that manages the language server process and provides syntax highlighting via TextMate grammar.
+
+### IntelliJ Plugin (`intellij-gn`)
+A Kotlin-based plugin for IntelliJ IDEA. It utilizes `lsp4ij` to integrate the language server with the IntelliJ platform, providing a seamless experience for users of JetBrains IDEs.
+
+## 5. Data Flow Example: "Go to Definition"
 
 A typical request flows through the system as follows:
 
