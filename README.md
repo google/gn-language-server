@@ -34,6 +34,11 @@ Search for "GN Language" in the VSCode's extension window.
 
 ![VSCode Marketplace](/docs/screenshots/marketplace.png)
 
+### JetBrains IDEs (IntelliJ, CLion, Android Studio, etc.)
+
+You can install from the [JetBrains marketplace](https://plugins.jetbrains.com/plugin/26851-gn-language).
+Search for "GN Language" in the IDE's plugin window.
+
 ### Other Editors/IDEs
 
 You can install the language server with [Cargo](https://doc.rust-lang.org/cargo/).
