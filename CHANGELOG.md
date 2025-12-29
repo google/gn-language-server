@@ -2,6 +2,7 @@
 
 ## 1.10.0 (unreleased)
 
+- Introduce the JetBrains IDE plugin
 - Features:
   - Highlight undefined variables
   - Suggest completion items from the workspace
@@ -14,7 +15,7 @@
   - Fix crash on completing foreach variables
   - Fix incorrect analysis for circular imports
 - Misc:
-  - Add the extension icon and the file icon
+  - Add icons for the extension and build files
   - Update GN base version to support `path_exists`
   - Improve workspace scan efficiency
   - Add build attestation
