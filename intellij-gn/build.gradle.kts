@@ -65,7 +65,9 @@ intellijPlatform {
 
 tasks {
     publishPlugin {
-        archiveFile = file(providers.gradleProperty("pluginFile"))
+        providers.gradleProperty("pluginFile").orNull?.let {
+            archiveFile = file(it)
+        }
     }
 
     // Set the JVM compatibility versions
