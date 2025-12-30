@@ -271,7 +271,7 @@ jobs:
         working-directory: intellij-gn
       - run: ls -l .
         working-directory: intellij-gn
-      - run: ./gradlew publishPlugin -PpluginFile=intellij-gn-*-signed.zip $(if python3 ../scripts/is_prerelease.py; then echo -Pchannel=eap; fi)
+      - run: ./gradlew publishPlugin -PpluginFile=$(echo intellij-gn-*-signed.zip) $(if python3 ../scripts/is_prerelease.py; then echo -Pchannel=eap; fi)
         working-directory: intellij-gn
         env:
           JETBRAINS_TOKEN: ${{ secrets.JETBRAINS_TOKEN }}
