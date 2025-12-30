@@ -64,6 +64,10 @@ intellijPlatform {
 }
 
 tasks {
+    publishPlugin {
+        archiveFile = file(providers.gradleProperty("pluginFile"))
+    }
+
     // Set the JVM compatibility versions
     withType<JavaCompile> {
         sourceCompatibility = "21"
