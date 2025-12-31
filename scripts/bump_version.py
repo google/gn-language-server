@@ -29,21 +29,35 @@ def main():
         '--update',
         action='store_true',
         help='Update manifests with the new version')
-    options = parser.parse_args()
+    parser.add_argument(
+        '--release',
+        action='store_true',
+        help='Make a release, not a pre-release')
+    args = parser.parse_args()
 
     with open('vscode-gn/package.json') as f:
         version = json.load(f)['version']
+
     components = [int(s) for s in version.split('.')]
     assert len(components) == 3, version
-    if components[1] % 2 == 0:
-        components[1] += 1
+
+    if args.release:
+        if components[1] % 2 == 0:
+            components[1] += 2
+        else:
+            components[1] += 1
         components[2] = 0
     else:
-        components[2] += 1
+        if components[1] % 2 == 0:
+            components[1] += 1
+            components[2] = 0
+        else:
+            components[2] += 1
+
     new_version = '.'.join(str(c) for c in components)
     print(new_version)
 
-    if options.update:
+    if args.update:
         subprocess.check_call(
             ['cargo', 'set-version', f'{new_version}-prerelease'],
             stdout=subprocess.DEVNULL)
