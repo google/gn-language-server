@@ -1,6 +1,6 @@
 # Changelog
 
-## 1.10.0 (unreleased)
+## 1.10.0 (2026-01-01)
 
 - Introduce the JetBrains IDE plugin
 - Features:
