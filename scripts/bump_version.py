@@ -58,8 +58,9 @@ def main():
     print(new_version)
 
     if args.update:
+        rust_version = new_version if args.release else f'{new_version}-prerelease'
         subprocess.check_call(
-            ['cargo', 'set-version', f'{new_version}-prerelease'],
+            ['cargo', 'set-version', rust_version],
             stdout=subprocess.DEVNULL)
         subprocess.check_call(
             ['npm', 'version', new_version],
