@@ -57,7 +57,7 @@ intellijPlatform {
 
     publishing {
         token = providers.environmentVariable("JETBRAINS_TOKEN")
-        channels = providers.gradleProperty("channel").map { listOf(it) }
+        channels = providers.gradleProperty("channel").map { listOf(it) }.orElse(emptyList())
     }
 
     buildSearchableOptions = false
