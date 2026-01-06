@@ -32,6 +32,7 @@ repositories {
 dependencies {
     intellijPlatform {
         intellijIdea("2024.2.4")
+        zipSigner()
         testFramework(org.jetbrains.intellij.platform.gradle.TestFrameworkType.Platform)
 
         bundledPlugin("org.jetbrains.plugins.textmate")
