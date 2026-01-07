@@ -44,7 +44,7 @@ Search for "GN Language" in the IDE's plugin window.
 You can install the language server with [Cargo](https://doc.rust-lang.org/cargo/).
 
 ```sh
-cargo install gn-language-server
+cargo install --locked gn-language-server
 ```
 
 ## Gallery
