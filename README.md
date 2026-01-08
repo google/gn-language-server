@@ -26,9 +26,11 @@ the build configuration language used in Chromium, Fuchsia, and other projects.
 
 ## Installing
 
-### VSCode
+### VSCode and its derivatives
 
-You can install from the official [VSCode marketplace](https://marketplace.visualstudio.com/items?itemName=Google.gn)
+You can install an extension with prebuilt language server binaries from the
+official
+[VSCode marketplace](https://marketplace.visualstudio.com/items?itemName=Google.gn)
 or the [OpenVSX marketplace](https://open-vsx.org/extension/Google/gn).
 Search for "GN Language" in the VSCode's extension window.
 
@@ -36,16 +38,40 @@ Search for "GN Language" in the VSCode's extension window.
 
 ### JetBrains IDEs (IntelliJ, CLion, Android Studio, etc.)
 
-You can install from the [JetBrains marketplace](https://plugins.jetbrains.com/plugin/29463-gn-language).
+You can install a plugin with prebuilt language server binaries from the
+[JetBrains marketplace](https://plugins.jetbrains.com/plugin/29463-gn-language).
 Search for "GN Language" in the IDE's plugin window.
 
-### Other Editors/IDEs
+### Emacs
 
-You can install the language server with [Cargo](https://doc.rust-lang.org/cargo/).
+Install the language server with [Cargo](https://doc.rust-lang.org/cargo/).
 
 ```sh
 cargo install --locked gn-language-server
 ```
+
+Then set up [gn-mode](https://github.com/lashtear/gn-mode) or any syntax
+highlighting mode for GN, and add the following to your config:
+
+```elisp
+(use-package gn-mode
+  :ensure t
+  :mode ("\\.gn\\'" "\\.gni\\'")
+  :hook (gn-mode . eglot-ensure)
+  :config
+  (with-eval-after-load 'eglot
+    (add-to-list 'eglot-server-programs '(gn-mode . ("gn-language-server")))))
+```
+
+### Other Editors/IDEs
+
+Install the language server with [Cargo](https://doc.rust-lang.org/cargo/).
+
+```sh
+cargo install --locked gn-language-server
+```
+
+Then follow editor-specific instructions to install the language server.
 
 ## Gallery
 
