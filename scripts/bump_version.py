@@ -41,18 +41,12 @@ def main():
     components = [int(s) for s in version.split('.')]
     assert len(components) == 3, version
 
-    if args.release:
-        if components[1] % 2 == 0:
-            components[1] += 2
-        else:
-            components[1] += 1
-        components[2] = 0
+    parity = 0 if args.release else 1
+    if components[1] % 2 == parity:
+        components[2] += 1
     else:
-        if components[1] % 2 == 0:
-            components[1] += 1
-            components[2] = 0
-        else:
-            components[2] += 1
+        components[1] += 1
+        components[2] = 0
 
     new_version = '.'.join(str(c) for c in components)
     print(new_version)
