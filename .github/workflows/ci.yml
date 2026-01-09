@@ -202,12 +202,15 @@ jobs:
         with:
           pattern: gn-language-server-*
           path: ${{ github.workspace }}/artifacts
-      - run: mv gn-language-server-x86_64-unknown-linux-musl/gn-language-server gn-language-server-linux-x86_64 && rmdir gn-language-server-x86_64-unknown-linux-musl
-        working-directory: artifacts
-      - run: mv gn-language-server-aarch64-apple-darwin/gn-language-server gn-language-server-darwin-aarch64 && rmdir gn-language-server-aarch64-apple-darwin
-        working-directory: artifacts
-      - run: mv gn-language-server-x86_64-pc-windows-msvc/gn-language-server.exe gn-language-server-windows-x86_64.exe && rmdir gn-language-server-x86_64-pc-windows-msvc
-        working-directory: artifacts
+      - name: Rename artifacts
+        run: |
+          version=$(jq -r .version vscode-gn/package.json)
+          cd artifacts
+          mv gn-language-server-x86_64-unknown-linux-musl/gn-language-server "gn-language-server-${version}-linux-x86_64"
+          mv gn-language-server-aarch64-apple-darwin/gn-language-server "gn-language-server-${version}-darwin-aarch64"
+          mv gn-language-server-x86_64-pc-windows-msvc/gn-language-server.exe "gn-language-server-${version}-windows-x86_64.exe"
+          rmdir gn-language-server-x86_64-unknown-linux-musl gn-language-server-aarch64-apple-darwin gn-language-server-x86_64-pc-windows-msvc
+        shell: bash
       - run: ls -l .
         working-directory: artifacts
       - run: gh release upload "${{ github.ref_name }}" artifacts/*
