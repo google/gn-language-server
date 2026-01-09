@@ -1,6 +1,6 @@
 # Changelog
 
-## 1.10.1 (2026-01-09)
+## 1.10.2 (2026-01-09)
 
 - No functional changes
 - Now gn-language-server prebuilts are uploaded as GitHub release artifacts
