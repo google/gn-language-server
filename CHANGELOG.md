@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.10.1 (2026-01-09)
+
+- No functional changes
+- Now gn-language-server prebuilts are uploaded as GitHub release artifacts
+
 ## 1.10.0 (2026-01-01)
 
 - Introduce the JetBrains IDE plugin
