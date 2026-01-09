@@ -139,15 +139,7 @@ jobs:
     - uses: gradle/actions/setup-gradle@4d9f0ba0025fe599b4ebab900eb7f3a1d93ef4c2  # v5.0.0
     - uses: actions/download-artifact@v4
       with:
-        pattern: gn-language-server-x86_64-unknown-linux-musl
-        path: ${{ github.workspace }}/lsp-prebuilts
-    - uses: actions/download-artifact@v4
-      with:
-        pattern: gn-language-server-aarch64-apple-darwin
-        path: ${{ github.workspace }}/lsp-prebuilts
-    - uses: actions/download-artifact@v4
-      with:
-        pattern: gn-language-server-x86_64-pc-windows-msvc
+        pattern: gn-language-server-*
         path: ${{ github.workspace }}/lsp-prebuilts
     - run: mv gn-language-server-x86_64-unknown-linux-musl x86_64-unknown-linux-musl
       working-directory: lsp-prebuilts
@@ -197,8 +189,25 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/download-artifact@v4
         with:
+          pattern: vscode-gn-vsix-*
           path: ${{ github.workspace }}/artifacts
           merge-multiple: true
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: intellij-gn
+          path: ${{ github.workspace }}/artifacts
+      - run: mv intellij-gn/*.zip ./ && rmdir intellij-gn
+        working-directory: artifacts
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: gn-language-server-*
+          path: ${{ github.workspace }}/artifacts
+      - run: mv gn-language-server-x86_64-unknown-linux-musl/gn-language-server gn-language-server-linux-x86_64 && rmdir gn-language-server-x86_64-unknown-linux-musl
+        working-directory: artifacts
+      - run: mv gn-language-server-aarch64-apple-darwin/gn-language-server gn-language-server-darwin-aarch64 && rmdir gn-language-server-aarch64-apple-darwin
+        working-directory: artifacts
+      - run: mv gn-language-server-x86_64-pc-windows-msvc/gn-language-server.exe gn-language-server-windows-x86_64.exe && rmdir gn-language-server-x86_64-pc-windows-msvc
+        working-directory: artifacts
       - run: ls -l .
         working-directory: artifacts
       - run: gh release upload "${{ github.ref_name }}" artifacts/*
