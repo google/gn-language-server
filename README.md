@@ -42,6 +42,23 @@ You can install a plugin with prebuilt language server binaries from the
 [JetBrains marketplace](https://plugins.jetbrains.com/plugin/29463-gn-language).
 Search for "GN Language" in the IDE's plugin window.
 
+### NeoVim
+
+gn-language-server is registered to
+[nvim-lspconfig](https://github.com/neovim/nvim-lspconfig),
+[mason-registry](https://github.com/mason-org/mason-registry), and
+[mason-lspconfig](https://github.com/mason-org/mason-lspconfig.nvim). Thus,
+assuming that you have enabled
+[mason-lspconfig](https://github.com/mason-org/mason-lspconfig.nvim),
+you can install and enable it with the following simple command:
+
+```
+:MasonInstall gn-language-server
+```
+
+The language server does not provide syntax highlighting though. You can use
+[nvim-treesitter](https://github.com/nvim-treesitter/nvim-treesitter) for this.
+
 ### Emacs
 
 Install the language server with [Cargo](https://doc.rust-lang.org/cargo/).
