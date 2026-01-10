@@ -34,7 +34,7 @@ official
 or the [OpenVSX marketplace](https://open-vsx.org/extension/Google/gn).
 Search for "GN Language" in the VSCode's extension window.
 
-<img src="https://raw.githubusercontent.com/google/gn-language-server/main/docs/screenshots/marketplace.png" alt="VSCode Marketplace" width="369" height="74">
+<img src="https://raw.githubusercontent.com/google/gn-language-server/refs/heads/main/docs/screenshots/marketplace.png" alt="VSCode Marketplace" width="369" height="74">
 
 ### JetBrains IDEs (IntelliJ, CLion, Android Studio, etc.)
 
