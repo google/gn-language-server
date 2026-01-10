@@ -82,7 +82,11 @@ highlighting mode for GN, and add the following to your config:
 
 ### Other Editors/IDEs
 
-Install the language server with [Cargo](https://doc.rust-lang.org/cargo/).
+You can download prebuilt language server binaries from
+[GitHub releases page](https://github.com/google/gn-language-server/releases?q=prerelease%3Afalse).
+
+Alternatively, you can build the language server from source with
+[Cargo](https://doc.rust-lang.org/cargo/).
 
 ```sh
 cargo install --locked gn-language-server
