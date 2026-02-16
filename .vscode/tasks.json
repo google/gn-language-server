@@ -1,0 +1,47 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "build-server",
+      "type": "npm",
+      "script": "build-server",
+      "options": {
+        "cwd": "${workspaceFolder}/vscode-gn"
+      },
+      "group": "build",
+      "problemMatcher": "$rustc"
+    },
+    {
+      "label": "npm-install",
+      "type": "npm",
+      "script": "install",
+      "options": {
+        "cwd": "${workspaceFolder}/vscode-gn"
+      },
+      "group": "build"
+    },
+    {
+      "label": "build-extension-js",
+      "type": "npm",
+      "script": "build-extension",
+      "options": {
+        "cwd": "${workspaceFolder}/vscode-gn"
+      },
+      "group": "build",
+      "dependsOn": [
+        "npm-install"
+      ]
+    },
+    {
+      "label": "build-extension",
+      "dependsOn": [
+        "build-server",
+        "build-extension-js"
+      ],
+      "group": {
+        "kind": "build",
+        "isDefault": true
+      }
+    }
+  ]
+}
