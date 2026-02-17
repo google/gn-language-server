@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.12.0 (2026-02-18)
+
+- Fix `UriError` pop-ups on Windows (#63)
+
 ## 1.10.3 (2026-01-09)
 
 - No functional changes
