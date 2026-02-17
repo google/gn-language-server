@@ -55,7 +55,7 @@ function ancestors(uri: vscode.Uri): vscode.Uri[] {
   let current = uri;
   for (;;) {
     ancestors.push(current);
-    const dir = path.dirname(current.path);
+    const dir = path.posix.dirname(current.path);
     if (dir === current.path) {
       break;
     }
@@ -77,7 +77,9 @@ async function statNoThrow(
 async function isInGnWorkspace(uri: vscode.Uri): Promise<boolean> {
   for (const dirUri of ancestors(uri).slice(1)) {
     for (const name of ['.gn', 'BUILD.gn']) {
-      const candidateUri = dirUri.with({path: path.join(dirUri.path, name)});
+      const candidateUri = dirUri.with({
+        path: path.posix.join(dirUri.path, name),
+      });
       if (await statNoThrow(candidateUri)) {
         return true;
       }
@@ -108,7 +110,7 @@ async function openBuildFile(): Promise<void> {
 
   if (isGnFile) {
     const dotGnUri = startUri.with({
-      path: path.join(path.dirname(startUri.path), '.gn'),
+      path: path.posix.join(path.posix.dirname(startUri.path), '.gn'),
     });
     if (await statNoThrow(dotGnUri)) {
       void vscode.window.showInformationMessage(
@@ -119,12 +121,18 @@ async function openBuildFile(): Promise<void> {
   }
 
   for (const dirUri of ancestors(startUri).slice(isGnFile ? 2 : 1)) {
-    const buildUri = dirUri.with({path: path.join(dirUri.path, 'BUILD.gn')});
+    const buildUri = dirUri.with({
+      path: path.posix.join(dirUri.path, 'BUILD.gn'),
+    });
     if (await statNoThrow(buildUri)) {
       vscode.window.showTextDocument(buildUri);
       return;
     }
-    if (await statNoThrow(dirUri.with({path: path.join(dirUri.path, '.gn')}))) {
+    if (
+      await statNoThrow(
+        dirUri.with({path: path.posix.join(dirUri.path, '.gn')})
+      )
+    ) {
       break;
     }
   }
