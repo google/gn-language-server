@@ -60,11 +60,12 @@ jobs:
           echo "version=$version" >> $GITHUB_OUTPUT
           git commit -a -m "Bump version to $version"
           git tag "v$version"
-          git push origin ${{ github.head_ref }}
+          git push origin ${GITHUB_HEAD_REF}
           git push origin "v$version"
       - name: Create a release
         if: steps.check-commits.outputs.has_commits == 'yes'
         run: |
-          gh release create "v${{ steps.bump_version.outputs.version }}" --prerelease --latest=false --generate-notes
+          gh release create "v${STEPS_BUMP_VERSION_OUTPUTS_VERSION}" --prerelease --latest=false --generate-notes
         env:
           GH_TOKEN: ${{ github.token }}
+          STEPS_BUMP_VERSION_OUTPUTS_VERSION: ${{ steps.bump_version.outputs.version }}
