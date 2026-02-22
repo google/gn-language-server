@@ -137,7 +137,7 @@
     "ovsx": "^0.10.1",
     "ts-loader": "^9.5.1",
     "typescript": "^5.7.2",
-    "webpack": "^5.95.0",
+    "webpack": "^5.105.2",
     "webpack-cli": "^5.1.4"
   }
 }
