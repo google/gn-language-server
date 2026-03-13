@@ -88,6 +88,11 @@ jobs:
           - os: ubuntu-latest
             rust_target: x86_64-unknown-linux-musl
             vscode_target: linux-x64
+            vscode_secondary_target: alpine-x64
+          - os: ubuntu-latest
+            rust_target: aarch64-unknown-linux-musl
+            vscode_target: linux-arm64
+            vscode_secondary_target: alpine-arm64
           - os: macos-latest
             rust_target: aarch64-apple-darwin
             vscode_target: darwin-arm64
@@ -122,11 +127,20 @@ jobs:
     - uses: actions/upload-artifact@v4
       with:
         name: vscode-gn-vsix-${{ matrix.vscode_target }}
-        path: vscode-gn/*.vsix
+        path: vscode-gn/gn-${{ matrix.vscode_target }}-*.vsix
     - uses: actions/upload-artifact@v4
       with:
         name: gn-language-server-${{ matrix.rust_target }}
         path: vscode-gn/dist/gn-language-server*
+    - run: npx vsce package $(if python3 ../scripts/is_prerelease.py; then echo --pre-release; fi) --target=${{ matrix.vscode_secondary_target }}
+      working-directory: vscode-gn
+      shell: bash
+      if: matrix.vscode_secondary_target
+    - uses: actions/upload-artifact@v4
+      with:
+        name: vscode-gn-vsix-${{ matrix.vscode_secondary_target }}
+        path: vscode-gn/gn-${{ matrix.vscode_secondary_target }}-*.vsix
+      if: matrix.vscode_secondary_target
 
   build-intellij-plugin:
     runs-on: ubuntu-latest
