@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.14.0 (2026-03-13)
+
+- Support Intel Mac, Linux arm64, and Alpine Linux (musl)
+
 ## 1.12.0 (2026-02-18)
 
 - Fix `UriError` pop-ups on Windows (#63)
