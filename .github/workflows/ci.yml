@@ -93,6 +93,7 @@ jobs:
             rust_target: aarch64-unknown-linux-musl
             vscode_target: linux-arm64
             vscode_secondary_target: alpine-arm64
+            extra_apt_packages: gcc-aarch64-linux-gnu
           - os: macos-latest
             rust_target: aarch64-apple-darwin
             vscode_target: darwin-arm64
@@ -108,7 +109,7 @@ jobs:
     name: build (${{ matrix.vscode_target }})
     steps:
     - uses: actions/checkout@v4
-    - run: sudo apt-get install musl-tools
+    - run: sudo apt-get install musl-tools ${{ matrix.extra_apt_packages }}
       if: matrix.os == 'ubuntu-latest'
     - uses: dtolnay/rust-toolchain@8a40291d6a0a08b8fb98b13bad5a0305b42d5f9c  # 1.92.0
       with:
