@@ -148,6 +148,8 @@ jobs:
       working-directory: lsp-prebuilts
     - run: mv gn-language-server-aarch64-apple-darwin aarch64-apple-darwin
       working-directory: lsp-prebuilts
+    - run: mv gn-language-server-x86_64-apple-darwin x86_64-apple-darwin
+      working-directory: lsp-prebuilts
     - run: mv gn-language-server-x86_64-pc-windows-msvc x86_64-pc-windows-msvc
       working-directory: lsp-prebuilts
     - run: ls -lR .
@@ -211,8 +213,9 @@ jobs:
           cd artifacts
           mv gn-language-server-x86_64-unknown-linux-musl/gn-language-server "gn-language-server-${version}-linux-x86_64"
           mv gn-language-server-aarch64-apple-darwin/gn-language-server "gn-language-server-${version}-darwin-aarch64"
+          mv gn-language-server-x86_64-apple-darwin/gn-language-server "gn-language-server-${version}-darwin-x86_64"
           mv gn-language-server-x86_64-pc-windows-msvc/gn-language-server.exe "gn-language-server-${version}-windows-x86_64.exe"
-          rmdir gn-language-server-x86_64-unknown-linux-musl gn-language-server-aarch64-apple-darwin gn-language-server-x86_64-pc-windows-msvc
+          rmdir gn-language-server-x86_64-unknown-linux-musl gn-language-server-aarch64-apple-darwin gn-language-server-x86_64-apple-darwin gn-language-server-x86_64-pc-windows-msvc
         shell: bash
       - run: ls -l .
         working-directory: artifacts
