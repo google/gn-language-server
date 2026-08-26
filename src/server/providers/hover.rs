@@ -147,6 +147,8 @@ mod tests {
         assert!(symbol.is_some());
         let doc = symbol.unwrap().doc;
         assert!(doc.contains("expand_directory(directory, recursive)"));
-        assert!(doc.contains("Returns a list of all files contained within the specified directory."));
+        assert!(
+            doc.contains("Returns a list of all files contained within the specified directory.")
+        );
     }
 }
