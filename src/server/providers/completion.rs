@@ -486,6 +486,7 @@ mod tests {
 
         let expectation = [
             ("assert", true),
+            ("expand_directory", true),
             ("source_set", true),
             ("current_cpu", false),
             ("sources", false),
@@ -531,6 +532,7 @@ mod tests {
 
         let expectation = [
             ("assert", true),
+            ("expand_directory", true),
             ("source_set", true),
             ("current_cpu", false),
             ("sources", true),
@@ -577,6 +579,7 @@ mod tests {
 
         let expectation = [
             ("assert", true),
+            ("expand_directory", true),
             ("source_set", false),
             ("current_cpu", true),
             ("sources", true),

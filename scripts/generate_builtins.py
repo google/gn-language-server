@@ -19,7 +19,7 @@ import os
 import re
 import subprocess
 
-_GN_COMMIT = '4e0818fd86bffc0b4a4b61d3295a6732ba08d715'
+_GN_COMMIT = 'deecdc59301db96900fec68b4a067d9b70eacbb9'
 
 _SECTION_RE = re.compile(r'^## <a name="([^"]+)">[^\n]*\n\n(.*?)(?=^## |\Z)', re.DOTALL | re.MULTILINE)
 _ITEM_RE = re.compile(r'^### <a name="[^"]+"></a>(\*+([^*]+)\*+[^\n]*?)&nbsp;[^\n]*\n(.*?)(?=^### |\Z)', re.DOTALL | re.MULTILINE)

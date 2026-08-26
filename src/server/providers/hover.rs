@@ -137,4 +137,16 @@ mod tests {
             })
         );
     }
+
+    #[tokio::test]
+    async fn test_hover_builtin_expand_directory() {
+        let symbol = BUILTINS
+            .functions
+            .iter()
+            .find(|s| s.name == "expand_directory");
+        assert!(symbol.is_some());
+        let doc = symbol.unwrap().doc;
+        assert!(doc.contains("expand_directory(directory, recursive)"));
+        assert!(doc.contains("Returns a list of all files contained within the specified directory."));
+    }
 }
