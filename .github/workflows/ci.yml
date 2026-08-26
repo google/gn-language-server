@@ -183,6 +183,7 @@ jobs:
         path: intellij-gn/build/distributions/intellij-gn-*-signed.zip
 
   attestation:
+    if: github.event_name == 'push'
     runs-on: ubuntu-latest
     permissions:
       id-token: write
