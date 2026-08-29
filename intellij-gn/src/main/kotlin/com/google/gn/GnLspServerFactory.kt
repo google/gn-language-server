@@ -14,8 +14,7 @@
 
 package com.google.gn
 
-import com.intellij.ide.plugins.PluginManagerCore
-import com.intellij.openapi.extensions.PluginId
+import com.intellij.ide.plugins.PluginManager
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.util.SystemInfo
 import com.intellij.util.system.CpuArch
@@ -35,7 +34,7 @@ class GnLspServerFactory : LanguageServerFactory {
 
     private fun getBundledBinaryPath(): Path {
         val plugin =
-            PluginManagerCore.getPlugin(PluginId.getId("com.google.gn"))
+            PluginManager.getPluginByClass(GnLspServerFactory::class.java)
                 ?: throw RuntimeException("Plugin descriptor not found")
 
         val target =
