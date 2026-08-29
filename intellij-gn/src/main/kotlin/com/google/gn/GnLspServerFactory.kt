@@ -14,7 +14,6 @@
 
 package com.google.gn
 
-import com.intellij.ide.plugins.PluginManager
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.util.SystemInfo
 import com.intellij.util.system.CpuArch
@@ -33,10 +32,6 @@ class GnLspServerFactory : LanguageServerFactory {
     }
 
     private fun getBundledBinaryPath(): Path {
-        val plugin =
-            PluginManager.getPluginByClass(GnLspServerFactory::class.java)
-                ?: throw RuntimeException("Plugin descriptor not found")
-
         val target =
             when {
                 SystemInfo.isLinux && CpuArch.isIntel64() -> "x86_64-unknown-linux-musl"
@@ -50,7 +45,7 @@ class GnLspServerFactory : LanguageServerFactory {
 
         val binaryName =
             if (SystemInfo.isWindows) "gn-language-server.exe" else "gn-language-server"
-        val binaryPath = plugin.pluginPath.resolve("bin/$target/$binaryName")
+        val binaryPath = getPluginPath().resolve("bin/$target/$binaryName")
 
         if (!Files.exists(binaryPath)) {
             throw RuntimeException("Bundled gn-language-server binary not found at: $binaryPath")
@@ -60,6 +55,23 @@ class GnLspServerFactory : LanguageServerFactory {
             ensureExecutable(binaryPath)
         }
         return binaryPath
+    }
+
+    private fun getPluginPath(): Path {
+        val codeSource =
+            GnLspServerFactory::class.java.protectionDomain.codeSource
+                ?: throw RuntimeException("Plugin code source not found")
+        val pluginJar =
+            try {
+                Path.of(codeSource.location.toURI())
+            } catch (e: Exception) {
+                throw RuntimeException("Plugin code source is not a local path", e)
+            }
+        val libDirectory = pluginJar.parent
+        if (libDirectory?.fileName?.toString() != "lib") {
+            throw RuntimeException("Plugin JAR is not in a lib directory: $pluginJar")
+        }
+        return libDirectory.parent ?: throw RuntimeException("Plugin root directory not found")
     }
 
     private fun ensureExecutable(path: Path) {
