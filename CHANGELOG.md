@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.16.0 (2026-09-03)
+
+- Support `expand_directory` by @atetubou (#75)
+
 ## 1.14.0 (2026-03-13)
 
 - Support Intel Mac, Linux arm64, and Alpine Linux (musl)
