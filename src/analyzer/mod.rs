@@ -68,7 +68,7 @@ pub struct Analyzer {
     storage: Arc<Mutex<DocumentStorage>>,
     workspace_finder: WorkspaceFinder,
     indexing_level: IndexingLevel,
-    workspaces: RwLock<BTreeMap<PathBuf, Arc<WorkspaceAnalyzer>>>,
+    workspaces: Mutex<BTreeMap<PathBuf, Arc<WorkspaceAnalyzer>>>,
 }
 
 impl Analyzer {
@@ -101,7 +101,7 @@ impl Analyzer {
     }
 
     pub fn workspaces(&self) -> BTreeMap<PathBuf, Arc<WorkspaceAnalyzer>> {
-        self.workspaces.read().unwrap().clone()
+        self.workspaces.lock().unwrap().clone()
     }
 
     pub fn workspace_finder(&self) -> &WorkspaceFinder {
@@ -123,13 +123,11 @@ impl Analyzer {
             storage.read_version(&dot_gn_path)
         };
 
-        {
-            let read_lock = self.workspaces.read().unwrap();
-            if let Some(analyzer) = read_lock.get(workspace_root) {
+        let mut workspaces = self.workspaces.lock().unwrap();
+        if let Some(analyzer) = workspaces.get(workspace_root) {
                 if analyzer.context().dot_gn_version == dot_gn_version {
                     return Ok(analyzer.clone());
                 }
-            }
         }
 
         let build_config = {
@@ -159,11 +157,8 @@ impl Analyzer {
             }
         }
 
-        let mut write_lock = self.workspaces.write().unwrap();
-        Ok(write_lock
-            .entry(workspace_root.to_path_buf())
-            .or_insert(analyzer)
-            .clone())
+        workspaces.insert(workspace_root.to_path_buf(), analyzer.clone());
+        Ok(analyzer)
     }
 }
 
